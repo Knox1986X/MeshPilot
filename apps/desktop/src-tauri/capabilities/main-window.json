@@ -1,6 +1,6 @@
 {
   "identifier": "main-window",
-  "description": "Только управление собственным окном, без доступа к файлам и процессам",
+  "description": "Управление своим окном и фиксированный снимок RAM, без общего доступа к файлам и процессам",
   "windows": ["main"],
-  "permissions": ["core:window:allow-start-dragging", "core:window:allow-minimize", "core:window:allow-toggle-maximize", "core:window:allow-close"]
+  "permissions": ["allow-read-ram", "core:window:allow-start-dragging", "core:window:allow-minimize", "core:window:allow-toggle-maximize", "core:window:allow-close"]
 }

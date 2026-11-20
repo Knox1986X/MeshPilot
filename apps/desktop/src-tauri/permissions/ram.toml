@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-read-ram"
+description = "Прочитать один снимок памяти без параметров"
+commands.allow = ["read_ram"]

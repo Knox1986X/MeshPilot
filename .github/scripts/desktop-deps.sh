@@ -5,7 +5,7 @@ set -euo pipefail
 packages=(libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev xvfb xauth xdotool dbus-x11)
 case ${1:-desktop} in
   desktop) ;;
-  vm) packages+=(qemu-system-x86 xorriso acl) ;;
+  vm) packages+=(qemu-system-x86 xorriso acl libatspi2.0-dev) ;;
   *) exit 2 ;;
 esac
 opts=(-o Acquire::Retries=1 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)

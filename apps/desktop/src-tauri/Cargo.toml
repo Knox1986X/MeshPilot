@@ -13,9 +13,11 @@ path = "src/main.rs"
 tauri-build = { version = "=2.7.6", features = [] }
 
 [dependencies]
+meshpilot-core = { path = "../../../crates/meshpilot-core" }
 tauri = { version = "=2.12.7", features = [] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+meshpilot-linux = { path = "../../../crates/meshpilot-linux" }
 rustix = { version = "1.1.6", features = ["process"] }
 
 [features]

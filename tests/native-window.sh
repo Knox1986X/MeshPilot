@@ -8,3 +8,8 @@ trap 'kill "$app" 2>/dev/null || true; wait "$app" 2>/dev/null || true' EXIT
 timeout 45s "$probe" search --sync --all --onlyvisible --pid "$app" --name '^MeshPilot([[:space:]]|$)' >/dev/null
 kill -0 "$app"
 echo "Проверено: появилось нативное окно MeshPilot с PID запущенного процесса"
+if [[ $# == 3 ]]; then
+  # Только в выделенной VM. Временной предел действует и на пробуждение шины доступности.
+  timeout 27s "$3" "$app" || exit 42
+  kill -0 "$app"
+fi

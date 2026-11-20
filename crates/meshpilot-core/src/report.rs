@@ -2,6 +2,16 @@ use serde::Serialize;
 
 pub const SCHEMA_VERSION: u8 = 1;
 
+/// Полный результат одного чтения. В отчёте None вместо частичного или вымышленного замера.
+#[derive(Debug, Serialize)]
+pub struct RamObservation {
+    pub used_bytes: u64,
+    pub total_bytes: u64,
+    pub source: &'static str,
+    /// RFC 3339, UTC, время измерения, не время отрисовки.
+    pub observed_at_utc: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct StatusReport {
     pub schema_version: u8,
@@ -10,6 +20,7 @@ pub struct StatusReport {
     pub os_id: Option<String>,
     pub cachyos: Option<bool>,
     /// None означает отсутствие наблюдения, а не отрицательный результат.
+    pub ram: Option<RamObservation>,
     pub online: Option<bool>,
     pub dns: Option<String>,
     pub updatable_apps: Option<u32>,
@@ -24,6 +35,7 @@ impl StatusReport {
             read_only: true,
             os_id,
             cachyos,
+            ram: None,
             online: None,
             dns: None,
             updatable_apps: None,
@@ -62,5 +74,17 @@ impl DoctorReport {
         self.checks
             .iter()
             .all(|c| !c.required || c.finding == Finding::Detected)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unknown_ram_is_explicitly_null_in_v1() {
+        let json = serde_json::to_value(StatusReport::unmeasured(None, None)).unwrap();
+        assert_eq!(json["schema_version"], 1);
+        assert_eq!(json.get("ram"), Some(&serde_json::Value::Null));
     }
 }

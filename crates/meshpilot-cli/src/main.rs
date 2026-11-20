@@ -1,7 +1,17 @@
-use meshpilot_core::Finding;
+use meshpilot_core::{Finding, RamObservation};
 use std::{env, process::ExitCode};
 
 const USAGE: &str = "MeshPilot · диагностика без изменений\n\nmeshpilot <status|doctor> [--json] [--dry-run]\n\n  status   Состояние системы и доступность наблюдений\n  doctor   Пассивная проверка ОС, утилит и файлов WebKitGTK на CachyOS\n\nКоды: 0 — отчёт готов, 2 — ошибка аргументов, 3 — ограниченная диагностика.";
+
+fn ram_line(ram: Option<&RamObservation>) -> String {
+    match ram {
+        Some(r) => format!(
+            "RAM: занято {} из {} байт · {} · {}",
+            r.used_bytes, r.total_bytes, r.source, r.observed_at_utc
+        ),
+        None => "RAM: нет данных".into(),
+    }
+}
 
 fn main() -> ExitCode {
     let mut command = None;
@@ -35,12 +45,13 @@ fn main() -> ExitCode {
                 );
             } else {
                 println!(
-                    "MeshPilot · только чтение\nСистема: {}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
+                    "MeshPilot · только чтение\nСистема: {}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
                     match (r.cachyos, r.os_id.as_deref()) {
                         (Some(true), Some("arch")) => "CachyOS (ID=arch)",
                         (None, Some("arch")) => "arch (CachyOS не подтверждена)",
                         (_, id) => id.unwrap_or("не удалось определить"),
-                    }
+                    },
+                    ram_line(r.ram.as_ref())
                 );
             }
             ExitCode::SUCCESS
@@ -74,5 +85,25 @@ fn main() -> ExitCode {
             eprintln!("{USAGE}");
             ExitCode::from(2)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_distinguishes_measured_zero_from_unavailable() {
+        let r = RamObservation {
+            used_bytes: 0,
+            total_bytes: 1024,
+            source: "/proc/meminfo",
+            observed_at_utc: "2026-11-20T10:00:00.123Z".into(),
+        };
+        assert_eq!(
+            ram_line(Some(&r)),
+            "RAM: занято 0 из 1024 байт · /proc/meminfo · 2026-11-20T10:00:00.123Z"
+        );
+        assert_eq!(ram_line(None), "RAM: нет данных");
     }
 }

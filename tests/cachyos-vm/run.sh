@@ -20,6 +20,8 @@ if [[ $release != 260809 ]]; then
   echo "::notice file=tests/cachyos-vm/run.sh::CachyOS $edition $release содержит webkit2gtk-4.1 $version до загрузки VM"
 fi
 mkdir -p "$work/payload/observer"
+# Только наблюдатель стенда. В госте используются штатные библиотеки AT-SPI/GTK.
+cc -std=c11 -O2 -Wall -Wextra -Werror "$here/ram-name.c" -o "$work/payload/ram-name" $(pkg-config --cflags --libs atspi-2 gobject-2.0)
 install -m 755 "$cli" "$work/payload/meshpilot"
 install -m 755 "$desktop" "$work/payload/meshpilot-desktop"
 install -m 644 "$here/guest.py" "$work/payload/guest.py"

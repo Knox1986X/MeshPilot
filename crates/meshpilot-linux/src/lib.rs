@@ -1,4 +1,7 @@
 //! Пассивные пробы фиксированных системных файлов. Внешние программы не запускаются.
+mod ram;
+pub use ram::ram_snapshot;
+
 use meshpilot_core::{Check, DoctorReport, Finding, SCHEMA_VERSION, StatusReport};
 use std::{
     fs::{self, File},
@@ -35,7 +38,7 @@ fn parse_id(text: &str) -> Option<String> {
     .then(|| id.to_owned())
 }
 
-fn bounded_text(file: File) -> Option<String> {
+fn bounded_text(file: impl Read) -> Option<String> {
     let mut text = String::new();
     file.take(65537).read_to_string(&mut text).ok()?;
     (text.len() <= 65536).then_some(text)
@@ -79,7 +82,10 @@ fn platform() -> Platform {
 
 pub fn status() -> StatusReport {
     let platform = platform();
-    StatusReport::unmeasured(platform.id, platform.cachyos)
+    StatusReport {
+        ram: ram_snapshot(),
+        ..StatusReport::unmeasured(platform.id, platform.cachyos)
+    }
 }
 
 // На CachyOS используются системные пути Arch. Это проверка файла, не dlopen/ldd.

@@ -44,9 +44,16 @@ jobs:
       - run: npm run build
       - run: CHROMIUM_BINARY="$(command -v google-chrome)" npm run test:layout
       - name: Зависимости сборки и виртуального дисплея на одноразовой VM
+        timeout-minutes: 6
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev xvfb xauth xdotool dbus-x11
+          opts=(-o Acquire::Retries=1 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
+          # Пакеты только из подписанных репозиториев Ubuntu; сторонние источники runner не нужны.
+          if [[ -s /etc/apt/sources.list.d/ubuntu.sources ]]; then
+            opts+=(-o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          fi
+          sudo apt-get "${opts[@]}" -o APT::Update::Error-Mode=any update
+          sudo apt-get "${opts[@]}" install -y --no-install-recommends libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev xvfb xauth xdotool dbus-x11
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
       - run: npm run tauri -- build --debug --no-bundle --ci -- --locked

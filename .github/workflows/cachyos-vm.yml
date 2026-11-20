@@ -3,11 +3,11 @@ name: CachyOS VM
 on:
   workflow_dispatch:
     inputs:
-      iso_release:
-        description: Выпуск ISO для полной проверки окна (штатный 260809 не содержит WebKitGTK 4.1)
+      profile:
+        description: Отдельный профиль окна. Два числовых ID относятся к Desktop, handheld-260628 — к Handheld Plasma.
         type: choice
-        default: "251129"
-        options: ["251129", "260809"]
+        default: "handheld-260628"
+        options: ["handheld-260628", "251129", "260809"]
   push:
     paths:
       - .github/workflows/cachyos-vm.yml
@@ -22,16 +22,16 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: meshpilot-cachyos-vm-${{ github.ref }}
+  group: meshpilot-cachyos-vm-${{ github.ref }}-${{ inputs.profile || 'handheld-260628' }}
   cancel-in-progress: true
 
 jobs:
   live:
-    name: CachyOS Live ${{ inputs.iso_release || '251129' }} · CLI и нативное окно
+    name: CachyOS Live ${{ inputs.profile || 'handheld-260628' }} · CLI и нативное окно
     runs-on: ubuntu-24.04
     timeout-minutes: 38
     env:
-      ISO_RELEASE: ${{ inputs.iso_release || '251129' }}
+      ISO_PROFILE: ${{ inputs.profile || 'handheld-260628' }}
       CARGO_PROFILE_DEV_DEBUG: "0"
       CARGO_INCREMENTAL: "0"
     steps:
@@ -39,9 +39,9 @@ jobs:
         with: { persist-credentials: false }
       - name: Проверить наличие аппаратной виртуализации runner
         run: test -c /dev/kvm && stat -c "%a %U:%G" /dev/kvm
-      - name: Проверить SHA-256 и подпись официального CachyOS Desktop
+      - name: Проверить SHA-256 и подпись выбранного официального ISO CachyOS
         timeout-minutes: 17
-        run: bash tests/cachyos-vm/media.sh "$RUNNER_TEMP/cachyos-media" "$ISO_RELEASE"
+        run: bash tests/cachyos-vm/media.sh "$RUNNER_TEMP/cachyos-media" "$ISO_PROFILE"
       - name: Зависимости сборки и QEMU на одноразовом runner
         timeout-minutes: 6
         run: bash .github/scripts/desktop-deps.sh vm
@@ -64,4 +64,6 @@ jobs:
             sudo -n setfacl -m "u:$(id -u):rw" /dev/kvm
           fi
           python3 -c 'import os, fcntl; fd=os.open("/dev/kvm", os.O_RDWR); assert fcntl.ioctl(fd, 0xae00)==12; os.close(fd)'
-          bash tests/cachyos-vm/run.sh "$RUNNER_TEMP/cachyos-media/cachyos-desktop-linux-$ISO_RELEASE.iso" target/debug/meshpilot apps/desktop/src-tauri/target/debug/meshpilot-desktop "$ISO_RELEASE"
+          source tests/cachyos-vm/fixtures.sh
+          select_fixture "$ISO_PROFILE"
+          bash tests/cachyos-vm/run.sh "$RUNNER_TEMP/cachyos-media/$name" target/debug/meshpilot apps/desktop/src-tauri/target/debug/meshpilot-desktop "$ISO_PROFILE"

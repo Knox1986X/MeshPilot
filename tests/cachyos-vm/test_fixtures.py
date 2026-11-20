@@ -28,12 +28,13 @@ class Fixtures(unittest.TestCase):
                                     HERE / "fixtures.sh", path], capture_output=True, timeout=3)
                 self.assertEqual(p.returncode == 0, html)
 
-    def test_neither_fixture_overwrites_existing_media(self):
+    def test_no_profile_overwrites_existing_media(self):
         with tempfile.TemporaryDirectory() as tmp:
-            for release in ("260809", "251129"):
-                path = Path(tmp) / f"cachyos-desktop-linux-{release}.iso"
+            for profile, edition, release in [("260809", "desktop", "260809"), ("251129", "desktop", "251129"),
+                                              ("handheld-260628", "handheld", "260628")]:
+                path = Path(tmp) / f"cachyos-{edition}-linux-{release}.iso"
                 path.write_bytes(b"existing")
-                p = subprocess.run([HERE / "media.sh", tmp, release], capture_output=True, timeout=3)
+                p = subprocess.run([HERE / "media.sh", tmp, profile], capture_output=True, timeout=3)
                 self.assertEqual(p.returncode, 2)
                 self.assertEqual(path.read_bytes(), b"existing")
 

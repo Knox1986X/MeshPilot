@@ -2,10 +2,11 @@
 
 **Что проверяем:** реальные `meshpilot status`, `meshpilot doctor` и видимое окно `meshpilot-desktop` на ядре и в пользовательской среде CachyOS. Тест не измеряет скорость сети, не считает обновления, не испытывает установщик или откат. Нативная проверка на Ubuntu/Xvfb и браузерная приёмка — отдельные результаты.
 
-## Два независимых выпуска, один критерий окна
+## Независимые профили, один критерий окна
 
 | Подписанный Desktop Live | Зачем нужен | Закреплённый SHA-256 ISO |
 |---|---|---|
+| [Handheld 260628](https://github.com/CachyOS/CachyOS-Live-ISO/tree/2b4179563103a030ecc0632cc8446bf4eb960b2d/archiso) | Отдельный **x86-64 Plasma** на ядре `linux-cachyos-deckify`, не эмуляция устройства и не Android. Кандидат на проверку системного WebKitGTK. Отдельно сверяем закреплённый хеш с `.iso.sha256` у издателя **и** проверяем байты и подпись ISO. [Независимая запись опубликованного хеша](https://github.com/neramc/linuxhub/blob/0a9ef22ab26dad420939f6c4c2a7d18bc5e6aa17/src/data/releases/cachyos.json) не заменяет эту проверку | `0567c61f21622e5b4b482a874c41076beeb9bd8c00f046fa40e5c8cfbe34d15f` |
 | [251129](https://github.com/CachyOS/wiki/blob/9402a5ce4f3b3583adf12b101b44cc7238ee5ded/src/content/docs/cachyos_basic/download.mdx) | Оконный стенд с архивной комплектацией. [Профиль выпуска](https://github.com/CachyOS/CachyOS-Live-ISO/tree/3f11bf53ea29bd05d0f581d7464a0d1f7b4f24cc/archiso) включает `yad` и автологин `liveuser` в Plasma X11. Стенд требует запись `webkit2gtk-4.1` в списке `/arch/pkglist.x86_64.txt` внутри подписанного ISO до запуска QEMU | `2ab25f72ce8fece890b440cf9e260fc3d57ae4f5fb5308086f670240de02da7b` |
 | [260809](https://github.com/CachyOS/wiki/blob/2ef1932f3622b92785dcc05d5d407ccb301c926e/src/content/docs/cachyos_basic/download.mdx) | Контроль на штатном более новом Live с Plasma/Wayland. CLI и дисплей проверены, для окна не хватило двух библиотек. Проверка окна на этом носителе не превращена в успешный тест отсутствия окна | `959f6577f45e25ee9fd8c220fd221b08e4ea79412c7315c0f922dd6d86d5e33c` |
 
@@ -51,11 +52,13 @@ cargo build --locked -p meshpilot-cli
 npm --prefix apps/desktop ci
 npm --prefix apps/desktop run tauri -- build --debug --no-bundle --ci -- --locked
 media_dir="$(mktemp -d)"
-release=251129
-bash tests/cachyos-vm/media.sh "$media_dir" "$release"
-bash tests/cachyos-vm/run.sh "$media_dir/cachyos-desktop-linux-$release.iso" target/debug/meshpilot apps/desktop/src-tauri/target/debug/meshpilot-desktop "$release"
+profile=handheld-260628
+bash tests/cachyos-vm/media.sh "$media_dir" "$profile"
+source tests/cachyos-vm/fixtures.sh
+select_fixture "$profile"
+bash tests/cachyos-vm/run.sh "$media_dir/$name" target/debug/meshpilot apps/desktop/src-tauri/target/debug/meshpilot-desktop "$profile"
 ```
 
-Чтобы воспроизвести отрицательное наблюдение на штатном 260809, задать `release=260809` в том же примере. Без явного аргумента скрипты сохраняют исходный профиль 260809. Существующие файлы не перезаписываются. Носитель удаляется вместе с одноразовым стендом. Локальные тесты выбора носителя и правил приёмки: `python3 -m unittest discover -s tests/cachyos-vm`. Не запускать `guest.py` как диагностику реальной машины.
+Для независимого прогона Desktop использовать `profile=251129` или `profile=260809` в том же примере. Результат одного профиля не засчитывается другому. Без явного аргумента скрипты сохраняют исходный профиль 260809. Существующие файлы не перезаписываются. Носитель удаляется вместе с одноразовым стендом. Локальные тесты выбора носителя и правил приёмки: `python3 -m unittest discover -s tests/cachyos-vm`. Не запускать `guest.py` как диагностику реальной машины.
 
-Workflow `.github/workflows/cachyos-vm.yml` при push изменений приложения, lockfiles или стенда проверяет 251129; после появления workflow в основной ветке ручной `workflow_dispatch` позволяет выбрать один из двух выпусков. Ни один вариант не принимает `FAIL GUI_RUNTIME` за успех. Изменения только документации не скачивают ISO. Результаты для конкретных SHA — в [STATE](STATE.md).
+Workflow `.github/workflows/cachyos-vm.yml` при push изменений приложения, lockfiles или стенда проверяет `handheld-260628`; после появления workflow в основной ветке ручной `workflow_dispatch` позволяет выбрать один из трёх профилей. Ни один вариант не принимает `FAIL GUI_RUNTIME` за успех. Изменения только документации не скачивают ISO. Результаты для конкретных SHA — в [STATE](STATE.md).

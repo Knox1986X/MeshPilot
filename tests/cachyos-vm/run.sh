@@ -4,8 +4,7 @@ set -euo pipefail
 trap 'echo "::error file=tests/cachyos-vm/run.sh,line=$LINENO::Сбой на строке $LINENO" >&2' ERR
 here=$(cd -- "$(dirname -- "$0")" && pwd)
 source "$here/fixtures.sh"
-release=${4-260809}
-sha=$(iso_digest "$release") || exit 2
+select_fixture "${4-260809}" || exit 2
 if (( EUID == 0 || $# < 3 || $# > 4 )); then echo "Нужны обычный пользователь, проверенный ISO, CLI и GUI" >&2; exit 2; fi
 iso=$(realpath -- "$1"); cli=$(realpath -- "$2"); desktop=$(realpath -- "$3")
 [[ -r /dev/kvm && -w /dev/kvm ]] || { echo "::error::KVM недоступен обычному пользователю"; exit 1; }
@@ -13,12 +12,12 @@ iso=$(realpath -- "$1"); cli=$(realpath -- "$2"); desktop=$(realpath -- "$3")
 # Не доверять имени образа, в том числе при запуске вручную после скачивания.
 printf '%s  %s\n' "$sha" "$iso" | sha256sum --check
 work=$(mktemp -d); trap 'rm -rf -- "$work"' EXIT
-if [[ $release == 251129 ]]; then
+if [[ $release != 260809 ]]; then
   # Доказательство исходной комплектации — список внутри уже проверенного ISO, не список с зеркала.
   xorriso -osirrox on -indev "$iso" -extract /arch/pkglist.x86_64.txt "$work/pkglist"
   version=$(awk 'NF == 2 && $1 == "webkit2gtk-4.1" {v=$2; n++} END {if (n==1) print v}' "$work/pkglist")
   [[ $version =~ ^[A-Za-z0-9.:+_~-]{1,80}$ ]] || { echo "::error::На подписанном ISO нет однозначной записи webkit2gtk-4.1"; exit 1; }
-  echo "::notice file=tests/cachyos-vm/run.sh::CachyOS $release содержит webkit2gtk-4.1 $version до загрузки VM"
+  echo "::notice file=tests/cachyos-vm/run.sh::CachyOS $edition $release содержит webkit2gtk-4.1 $version до загрузки VM"
 fi
 mkdir -p "$work/payload/observer"
 install -m 755 "$cli" "$work/payload/meshpilot"
@@ -36,7 +35,7 @@ WRAPPER
 chmod 755 "$work/payload/window-observer"
 nonce=$(python3 -c 'import secrets; print(secrets.token_hex(16))'); echo "$nonce" > "$work/payload/run-id"
 xorriso -as mkisofs -quiet -R -J -V MESHPILOT_TEST -o "$work/suite.iso" "$work/payload"
-xorriso -osirrox on -indev "$iso" -extract /arch/boot/x86_64/vmlinuz-linux-cachyos-lts "$work/kernel" -extract /arch/boot/x86_64/initramfs-linux-cachyos-lts.img "$work/initramfs"
+xorriso -osirrox on -indev "$iso" -extract "/arch/boot/x86_64/vmlinuz-$kernel" "$work/kernel" -extract "/arch/boot/x86_64/initramfs-$kernel.img" "$work/initramfs"
 uuid=$(blkid -p -n iso9660 -s UUID -o value "$iso"); [[ $uuid =~ ^[A-Za-z0-9-]+$ ]]
 args=("archisobasedir=arch" "archisosearchuuid=$uuid" copytoram=n cow_spacesize=1G console=tty0 console=ttyS0,115200
       systemd.unit=graphical.target systemd.wants=kernel-command-line.service

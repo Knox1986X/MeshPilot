@@ -5,9 +5,7 @@ trap 'echo "::error file=tests/cachyos-vm/media.sh,line=$LINENO::Сбой на �
 here=$(cd -- "$(dirname -- "$0")" && pwd)
 source "$here/fixtures.sh"
 (( $# == 1 || $# == 2 )) || { echo "Укажите каталог и при необходимости выпуск ISO" >&2; exit 2; }
-release=${2-260809}
-sha=$(iso_digest "$release") || exit 2
-readonly name=cachyos-desktop-linux-$release.iso
+select_fixture "${2-260809}" || exit 2
 readonly signer=882DCFE48E2051D48E2562ABF3B607488DB35A47
 dest=${1:?Нужен пустой каталог для ISO}
 mkdir -p -- "$dest"
@@ -18,8 +16,8 @@ printf '%s  %s\n' 7f17cd0469e2b986d6c11ad8481a67705a20c5f968b198321a603567c40055
 mkdir -m 700 "$work/gpg"
 gpg --no-options --batch --homedir "$work/gpg" --dearmor --output "$work/keyring.gpg" "$here/iso-signing-key.asc"
 opts=(--fail --location --silent --show-error --proto '=https' --proto-redir '=https' --connect-timeout 12)
-sf="https://downloads.sourceforge.net/project/cachyos-arch/gui-installer/desktop/$release"
-bases=("https://iso.cachyos.org/desktop/$release" "https://mirror.cachyos.org/ISO/desktop/$release" "$sf")
+sf="https://downloads.sourceforge.net/project/cachyos-arch/gui-installer/$edition/$release"
+bases=("https://iso.cachyos.org/$edition/$release" "https://cdn77.cachyos.org/ISO/$edition/$release" "https://mirror.cachyos.org/ISO/$edition/$release" "$sf")
 if [[ $release == 251129 ]]; then
   # Архивный выпуск: сначала архив проекта, затем зеркала из объявления этого выпуска.
   bases=("$sf" "https://cdn77.cachyos.org/ISO/desktop/$release" "https://mirror.cachyos.org/ISO/desktop/$release"
@@ -43,6 +41,11 @@ fetch() {
   return 1
 }
 # Источники файла и подписи могут отличаться. Ошибка проверки не вызывает смены источника.
+if [[ $edition == handheld ]]; then
+  # Сверяем закреплённый отпечаток файла также с данными дистрибутива, а не только каталога.
+  fetch "$name.sha256" 25 4096 "$work/published.sha256"
+  awk -v sha="$sha" -v name="$name" 'NF==2 && $1==sha && ($2==name || $2=="*"name) {ok++} END {exit !(NR==1 && ok==1)}' "$work/published.sha256"
+fi
 fetch "$name.sig" 25 65536 "$work/media.sig"
 if [[ $release == 251129 ]]; then
   rc=0; python3 "$here/archive.py" "$work" || rc=$?
@@ -58,4 +61,4 @@ printf '%s  %s\n' "$sha" "$work/media.iso" | sha256sum --check
 gpgv --homedir "$work/gpg" --keyring "$work/keyring.gpg" --status-fd 1 "$work/media.sig" "$work/media.iso" > "$work/status"
 awk -v expected="$signer" '$1 == "[GNUPG:]" && $2 == "VALIDSIG" && ($3 == expected || $NF == expected) {ok=1} END {exit !ok}' "$work/status"
 mv -- "$work/media.sig" "$dest/$name.sig"; mv -- "$work/media.iso" "$dest/$name"
-echo "::notice file=tests/cachyos-vm/media.sh::Проверены SHA-256 и подпись CachyOS Desktop $release"
+echo "::notice file=tests/cachyos-vm/media.sh::Проверены SHA-256 и подпись CachyOS $edition $release"

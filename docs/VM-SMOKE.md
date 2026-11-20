@@ -26,6 +26,8 @@
 
 [Прогон 73a5f2f](https://github.com/Knox1986X/MeshPilot/actions/runs/44811131168/job/136547642019): гостевые `status` и `doctor` прошли как `liveuser`; проверяемое состояние до и после совпало. Проверка динамических зависимостей вернула `FAIL GUI_RUNTIME libjavascriptcoregtk-4.1.so.0 libwebkit2gtk-4.1.so.0`. До запуска окна дело не дошло. Поэтому для desktop этап остаётся открытым независимо от [успеха на Ubuntu/Xvfb](https://github.com/Knox1986X/MeshPilot/actions/runs/44811143863).
 
+[Контрольный прогон 7244fb4](https://github.com/Knox1986X/MeshPilot/actions/runs/44812307884/job/136551701004) отдельно подтвердил ответ гостевого дисплея и новые проверки файлов библиотек в `doctor`. Гостевой протокол: `GUEST → CLI → SESSION → UNCHANGED → FAIL GUI_RUNTIME`, те же два soname. Графическая сессия работает; окно MeshPilot в ней не проверено. Зависимости в Live не добавляли.
+
 ## Условия результата
 
 | Отметка | Свидетельство |

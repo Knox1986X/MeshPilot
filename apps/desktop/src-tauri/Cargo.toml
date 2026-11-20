@@ -15,5 +15,8 @@ tauri-build = { version = "=2.7.6", features = [] }
 [dependencies]
 tauri = { version = "=2.12.7", features = [] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1.1.6", features = ["process"] }
+
 [features]
 custom-protocol = ["tauri/custom-protocol"]

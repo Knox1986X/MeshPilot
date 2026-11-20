@@ -49,3 +49,31 @@ fn doctor_exit_matches_required_checks_even_outside_cachyos() {
         .all(|c| c["required"] != true || c["finding"] == "detected");
     assert_eq!(out.status.code(), Some(if ready { 0 } else { 3 }));
 }
+
+#[test]
+fn first_run_leaves_user_directories_untouched() {
+    use std::{
+        env, fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let home = env::temp_dir().join(format!("meshpilot-test-{}-{stamp}", std::process::id()));
+    fs::create_dir(&home).unwrap();
+    for subcommand in ["status", "doctor"] {
+        let result = Command::new(env!("CARGO_BIN_EXE_meshpilot"))
+            .arg(subcommand)
+            .env("HOME", &home)
+            .env("XDG_CONFIG_HOME", home.join("config"))
+            .env("XDG_STATE_HOME", home.join("state"))
+            .env("XDG_DATA_HOME", home.join("data"))
+            .env("XDG_CACHE_HOME", home.join("cache"))
+            .output()
+            .unwrap();
+        assert!(matches!(result.status.code(), Some(0 | 3)));
+        assert_eq!(fs::read_dir(&home).unwrap().count(), 0);
+    }
+    fs::remove_dir(home).unwrap();
+}

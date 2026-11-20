@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with: { persist-credentials: false }
       - name: Проверить наличие аппаратной виртуализации runner
-        run: test -c /dev/kvm && getent group kvm
+        run: test -c /dev/kvm && stat -c "%a %U:%G" /dev/kvm
       - name: Проверить SHA-256 и подпись официального CachyOS Desktop 260809
         timeout-minutes: 9
         run: bash tests/cachyos-vm/media.sh "$RUNNER_TEMP/cachyos-media"
@@ -44,10 +44,12 @@ jobs:
       - name: Загрузить гостя без NIC и проверить результат через UART
         timeout-minutes: 9
         run: |
-          args=(bash tests/cachyos-vm/run.sh "$RUNNER_TEMP/cachyos-media/cachyos-desktop-linux-260809.iso" target/debug/meshpilot apps/desktop/src-tauri/target/debug/meshpilot-desktop)
-          if [[ -w /dev/kvm ]]; then
-            "${args[@]}"
-          else
-            # Та же непривилегированная учётная запись; не открываем KVM всем пользователям.
-            sudo -n -u "$(id -un)" -g kvm -- "${args[@]}"
+          # В отличие от sudo -g это работает и при несовпадении группы устройства с kvm.
+          # Право только для текущего UID на этой одноразовой VM, с возвратом исходного ACL.
+          if [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; then
+            getfacl --absolute-names /dev/kvm > "$RUNNER_TEMP/kvm.acl"
+            trap 'sudo -n setfacl --restore="$RUNNER_TEMP/kvm.acl"' EXIT
+            sudo -n setfacl -m "u:$(id -u):rw" /dev/kvm
           fi
+          python3 -c 'import os, fcntl; fd=os.open("/dev/kvm", os.O_RDWR); assert fcntl.ioctl(fd, 0xae00)==12; os.close(fd)'
+          bash tests/cachyos-vm/run.sh "$RUNNER_TEMP/cachyos-media/cachyos-desktop-linux-260809.iso" target/debug/meshpilot apps/desktop/src-tauri/target/debug/meshpilot-desktop

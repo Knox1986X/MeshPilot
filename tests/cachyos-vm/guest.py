@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import platform
 import pwd
 import re
 import stat
@@ -35,8 +36,6 @@ def readonly_cd(path):
 def guard():
     check(os.geteuid() == 0 and Path("/sys/class/dmi/id/product_name").read_text().strip() == "MeshPilot-smoke", "VM_GUARD")
     check(command(["systemd-detect-virt", "--vm"]).strip() in {"kvm", "qemu"}, "VM_GUARD")
-    check(readonly_cd(MEDIA) and readonly_cd("/run/archiso/bootmnt"), "MEDIA_GUARD")
-    check("cachyos" in os.uname().release and set(os.listdir("/sys/class/net")) == {"lo"}, "GUEST_ENV")
 
 
 def system_state():
@@ -90,7 +89,7 @@ def run_checks(emit, home):
         return command(["setpriv", f"--reuid={account.pw_uid}", f"--regid={account.pw_gid}", "--init-groups", "--no-new-privs", "--", *args], env=env, **kwargs)
 
     # Только неизменившиеся данные реального образа. Не подменять os-release в тесте.
-    raw_id = __import__("platform").freedesktop_os_release()["ID"]
+    raw_id = platform.freedesktop_os_release()["ID"]
     status = json.loads(user([MEDIA / "meshpilot", "status", "--json"]))
     check(status["read_only"] is True and status["os_id"] == raw_id and status["cachyos"] is True, "CLI_PLATFORM")
     check(all(status[k] is None for k in ("online", "dns", "updatable_apps", "security_fixes", "last_success_utc")), "CLI_OBSERVATIONS")
@@ -134,8 +133,10 @@ def main():
     with open("/dev/ttyS1", "w", buffering=1, encoding="ascii") as serial:
         def emit(event):
             print(f"MESHPILOT/1 {run_id} {event}", file=serial, flush=True)
-        emit("GUEST")
         try:
+            check(readonly_cd(MEDIA) and readonly_cd("/run/archiso/bootmnt"), "MEDIA_GUARD")
+            check("cachyos" in os.uname().release and set(os.listdir("/sys/class/net")) == {"lo"}, "GUEST_ENV")
+            emit("GUEST")
             # После штатной загрузки, не сравнивать с состоянием в середине инициализации ОС.
             deadline = time.monotonic() + 150
             while subprocess.run(["systemctl", "is-active", "--quiet", "multi-user.target"], timeout=5).returncode:

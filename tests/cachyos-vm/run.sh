@@ -5,7 +5,8 @@ trap 'echo "::error file=tests/cachyos-vm/run.sh,line=$LINENO::Сбой на с�
 here=$(cd -- "$(dirname -- "$0")" && pwd)
 if (( EUID == 0 || $# != 3 )); then echo "Нужны обычный пользователь, проверенный ISO, CLI и GUI" >&2; exit 2; fi
 iso=$(realpath -- "$1"); cli=$(realpath -- "$2"); desktop=$(realpath -- "$3")
-[[ -r /dev/kvm && -w /dev/kvm && -x $cli && -x $desktop ]]
+[[ -r /dev/kvm && -w /dev/kvm ]] || { echo "::error::KVM недоступен обычному пользователю"; exit 1; }
+[[ -x $cli && -x $desktop ]] || { echo "::error::Испытуемые бинарники не найдены"; exit 1; }
 # Не доверять имени образа, в том числе при запуске вручную после скачивания.
 printf '%s  %s\n' 959f6577f45e25ee9fd8c220fd221b08e4ea79412c7315c0f922dd6d86d5e33c "$iso" | sha256sum --check
 work=$(mktemp -d); trap 'rm -rf -- "$work"' EXIT
@@ -38,4 +39,10 @@ timeout --kill-after=10s 420s qemu-system-x86_64 -no-user-config -nodefaults -ma
   -serial "file:$work/boot.log" -serial "file:$work/result.log" \
   -drive "file=$iso,format=raw,media=cdrom,readonly=on" -drive "file=$work/suite.iso,format=raw,media=cdrom,readonly=on" \
   -kernel "$work/kernel" -initrd "$work/initramfs" -append "${args[*]}" || rc=$?
+# Диагностика отсутствия UART, без публикации полного журнала ОС.
+if [[ ! -s $work/result.log ]]; then
+  for hint in "Linux version" "Kernel panic" "emergency mode" "kernel-command-line.service" "Traceback" "Welcome to CachyOS"; do
+    if grep -Fq "$hint" "$work/boot.log"; then echo "::notice file=tests/cachyos-vm/run.sh::Отметка загрузки: $hint"; fi
+  done
+fi
 python3 "$here/verdict.py" "$work/result.log" "$nonce" "$rc"

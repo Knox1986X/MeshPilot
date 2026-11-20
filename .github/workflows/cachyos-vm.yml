@@ -1,0 +1,53 @@
+name: CachyOS VM
+# Многогигабайтный образ не скачивается на каждое изменение документации или на внешнем PR.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/cachyos-vm.yml
+      - .github/scripts/desktop-deps.sh
+      - tests/cachyos-vm/**
+      - tests/native-window.sh
+permissions:
+  contents: read
+concurrency:
+  group: meshpilot-cachyos-vm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live:
+    name: CachyOS Live · CLI и нативное окно
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: { persist-credentials: false }
+      - name: Проверить наличие аппаратной виртуализации runner
+        run: test -c /dev/kvm && getent group kvm
+      - name: Проверить SHA-256 и подпись официального CachyOS Desktop 260809
+        timeout-minutes: 9
+        run: bash tests/cachyos-vm/media.sh "$RUNNER_TEMP/cachyos-media"
+      - name: Зависимости сборки и QEMU на одноразовом runner
+        timeout-minutes: 6
+        run: bash .github/scripts/desktop-deps.sh vm
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with: { node-version: "22.22.3", package-manager-cache: false }
+      - name: Собрать испытуемые бинарники по lockfiles
+        run: |
+          cargo build --locked -p meshpilot-cli
+          cd apps/desktop
+          npm ci
+          npm run tauri -- build --debug --no-bundle --ci -- --locked
+      - name: Загрузить гостя без NIC и проверить результат через UART
+        timeout-minutes: 9
+        run: |
+          args=(bash tests/cachyos-vm/run.sh "$RUNNER_TEMP/cachyos-media/cachyos-desktop-linux-260809.iso" target/debug/meshpilot apps/desktop/src-tauri/target/debug/meshpilot-desktop)
+          if [[ -w /dev/kvm ]]; then
+            "${args[@]}"
+          else
+            # Та же непривилегированная учётная запись; не открываем KVM всем пользователям.
+            sudo -n -u "$(id -un)" -g kvm -- "${args[@]}"
+          fi

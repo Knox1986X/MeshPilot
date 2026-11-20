@@ -6,7 +6,9 @@ pub const SCHEMA_VERSION: u8 = 1;
 pub struct StatusReport {
     pub schema_version: u8,
     pub read_only: bool,
+    /// Буквальное ID из os-release, а не имя обнаруженного дистрибутива.
     pub os_id: Option<String>,
+    pub cachyos: Option<bool>,
     /// None означает отсутствие наблюдения, а не отрицательный результат.
     pub online: Option<bool>,
     pub dns: Option<String>,
@@ -16,11 +18,12 @@ pub struct StatusReport {
 }
 
 impl StatusReport {
-    pub fn unmeasured(os_id: Option<String>) -> Self {
+    pub fn unmeasured(os_id: Option<String>, cachyos: Option<bool>) -> Self {
         Self {
             schema_version: SCHEMA_VERSION,
             read_only: true,
             os_id,
+            cachyos,
             online: None,
             dns: None,
             updatable_apps: None,

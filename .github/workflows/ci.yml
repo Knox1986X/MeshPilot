@@ -24,7 +24,7 @@ jobs:
       - name: Проверка содержимого пакета ядра
         run: cargo package -p meshpilot-core --locked
       - run: python3 tests/project.py
-      - run: python3 tests/cachyos-vm/test_verdict.py
+      - run: python3 -m unittest discover -s tests/cachyos-vm
 
   desktop:
     runs-on: ubuntu-24.04

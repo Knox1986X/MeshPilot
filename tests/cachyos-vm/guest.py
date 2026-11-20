@@ -129,6 +129,10 @@ def run_checks(emit, home):
         emit("SESSION")
     if missing:
         raise Failure("GUI_RUNTIME " + " ".join(sorted(set(missing))[:20]))
+    # Не засчитывать библиотеку со второго CD или из нестандартного каталога.
+    for soname in ("libwebkit2gtk-4.1.so.0", "libjavascriptcoregtk-4.1.so.0"):
+        match = re.search(r"^\s*" + re.escape(soname) + r" => (/\S+) \(", linked, re.MULTILINE)
+        check(match and os.path.samefile(match[1], Path("/usr/lib") / soname), "GUI_RUNTIME_PATH")
     check(session, "NO_GRAPHICAL_SESSION")
     env.update(GDK_BACKEND="x11", WEBKIT_DISABLE_DMABUF_RENDERER="1", LIBGL_ALWAYS_SOFTWARE="1")
     try:

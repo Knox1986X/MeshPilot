@@ -3,13 +3,23 @@
 set -euo pipefail
 trap 'echo "::error file=tests/cachyos-vm/run.sh,line=$LINENO::Сбой на строке $LINENO" >&2' ERR
 here=$(cd -- "$(dirname -- "$0")" && pwd)
-if (( EUID == 0 || $# != 3 )); then echo "Нужны обычный пользователь, проверенный ISO, CLI и GUI" >&2; exit 2; fi
+source "$here/fixtures.sh"
+release=${4-260809}
+sha=$(iso_digest "$release") || exit 2
+if (( EUID == 0 || $# < 3 || $# > 4 )); then echo "Нужны обычный пользователь, проверенный ISO, CLI и GUI" >&2; exit 2; fi
 iso=$(realpath -- "$1"); cli=$(realpath -- "$2"); desktop=$(realpath -- "$3")
 [[ -r /dev/kvm && -w /dev/kvm ]] || { echo "::error::KVM недоступен обычному пользователю"; exit 1; }
 [[ -x $cli && -x $desktop ]] || { echo "::error::Испытуемые бинарники не найдены"; exit 1; }
 # Не доверять имени образа, в том числе при запуске вручную после скачивания.
-printf '%s  %s\n' 959f6577f45e25ee9fd8c220fd221b08e4ea79412c7315c0f922dd6d86d5e33c "$iso" | sha256sum --check
+printf '%s  %s\n' "$sha" "$iso" | sha256sum --check
 work=$(mktemp -d); trap 'rm -rf -- "$work"' EXIT
+if [[ $release == 251129 ]]; then
+  # Доказательство исходной комплектации — список внутри уже проверенного ISO, не список с зеркала.
+  xorriso -osirrox on -indev "$iso" -extract /arch/pkglist.x86_64.txt "$work/pkglist"
+  version=$(awk 'NF == 2 && $1 == "webkit2gtk-4.1" {v=$2; n++} END {if (n==1) print v}' "$work/pkglist")
+  [[ $version =~ ^[A-Za-z0-9.:+_~-]{1,80}$ ]] || { echo "::error::На подписанном ISO нет однозначной записи webkit2gtk-4.1"; exit 1; }
+  echo "::notice file=tests/cachyos-vm/run.sh::CachyOS $release содержит webkit2gtk-4.1 $version до загрузки VM"
+fi
 mkdir -p "$work/payload/observer"
 install -m 755 "$cli" "$work/payload/meshpilot"
 install -m 755 "$desktop" "$work/payload/meshpilot-desktop"

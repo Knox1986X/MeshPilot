@@ -18,6 +18,16 @@ class Fixtures(unittest.TestCase):
                 q = subprocess.run([HERE / "run.sh", "iso", "cli", "gui", name], capture_output=True, timeout=3)
                 self.assertEqual(q.returncode, 2)
 
+    def test_only_recognizable_html_is_a_delivery_miss(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "response"
+            for data, html in [(b"<!DOCTYPE html>\n<html lang=en>", True), (b"  <html>", True),
+                               (b"<htmlish>", False), (b"wrong bytes", False), (bytes(2048), False)]:
+                path.write_bytes(data)
+                p = subprocess.run(["bash", "-c", 'source "$1"; html_response "$2"', "test",
+                                    HERE / "fixtures.sh", path], capture_output=True, timeout=3)
+                self.assertEqual(p.returncode == 0, html)
+
     def test_neither_fixture_overwrites_existing_media(self):
         with tempfile.TemporaryDirectory() as tmp:
             for release in ("260809", "251129"):

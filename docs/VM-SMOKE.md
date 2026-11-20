@@ -2,24 +2,23 @@
 
 **Что проверяем:** реальные `meshpilot status`, `meshpilot doctor` и видимое окно `meshpilot-desktop` на ядре и в пользовательской среде CachyOS. Тест не измеряет скорость сети, не считает обновления, не испытывает установщик или откат. Нативная проверка на Ubuntu/Xvfb и браузерная приёмка — отдельные результаты.
 
-## Фикстура и происхождение
+## Два независимых выпуска, один критерий окна
 
-| Что | Что именно зафиксировано |
-|---|---|
-| Live ISO | Официальный **CachyOS Desktop 260809**, без пересборки. Два заданных HTTPS-источника одного образа; альтернативная версия не выбирается |
-| Контрольная сумма | `959f6577f45e25ee9fd8c220fd221b08e4ea79412c7315c0f922dd6d86d5e33c`, закреплена независимо от сервера загрузки в [CachyOS Wiki](https://github.com/CachyOS/wiki/blob/2ef1932f3622b92785dcc05d5d407ccb301c926e/src/content/docs/cachyos_basic/download.mdx) |
-| Подпись | Отделённая OpenPGP-подпись ISO; ожидаемый отпечаток `882DCFE48E2051D48E2562ABF3B607488DB35A47`. [Открытый ключ проекта](https://github.com/CachyOS/CachyOS-PKGBUILDS/blob/0669f94df9b4970886b3c3bbee13711aab7db5a8/cachyos-keyring/cachyos.gpg) хранится в тестах; это не секрет. Временный keyring не затрагивает пользовательский |
-| Бинарники | Собраны из того же checkout с `Cargo.lock` и `package-lock.json`. Испытание не скачивает приложение внутри гостя |
-| Идентификация | В [os-release Live-профиля](https://github.com/CachyOS/CachyOS-Live-ISO/blob/d876de294c45533c58fb03f4917e962abffc8f36/archiso/airootfs/etc/os-release) встречается `ID=arch`, `NAME=CachyOS`. CLI показывает сырой `os_id`; для этой комбинации требуется также `DISTRIB_ID=CachyOS` из `/etc/cachyos-release`. Это диагностика, не разрешение на запись |
+| Подписанный Desktop Live | Зачем нужен | Закреплённый SHA-256 ISO |
+|---|---|---|
+| [251129](https://github.com/CachyOS/wiki/blob/9402a5ce4f3b3583adf12b101b44cc7238ee5ded/src/content/docs/cachyos_basic/download.mdx) | Оконный стенд с архивной комплектацией. [Профиль выпуска](https://github.com/CachyOS/CachyOS-Live-ISO/tree/3f11bf53ea29bd05d0f581d7464a0d1f7b4f24cc/archiso) включает `yad` и автологин `liveuser` в Plasma X11. Стенд требует запись `webkit2gtk-4.1` в списке `/arch/pkglist.x86_64.txt` внутри подписанного ISO до запуска QEMU | `2ab25f72ce8fece890b440cf9e260fc3d57ae4f5fb5308086f670240de02da7b` |
+| [260809](https://github.com/CachyOS/wiki/blob/2ef1932f3622b92785dcc05d5d407ccb301c926e/src/content/docs/cachyos_basic/download.mdx) | Контроль на штатном более новом Live с Plasma/Wayland. CLI и дисплей проверены, для окна не хватило двух библиотек. Проверка окна на этом носителе не превращена в успешный тест отсутствия окна | `959f6577f45e25ee9fd8c220fd221b08e4ea79412c7315c0f922dd6d86d5e33c` |
 
-Если SHA-256 или подпись не совпали, образ **не загружается в QEMU**. Ошибка доставки, отсутствие KVM, таймаут, неготовая графическая сессия, недостающая библиотека или неполный отчёт — не успешная приёмка.
+Выбор выпуска явный. После ошибки не подменяем его другим и не рекомендуем более старый образ для повседневной работы. Принимаем только публичные HTTPS-источники одного файла: [зеркала релиза](https://github.com/CachyOS/website/blob/c36bc079e75a274320f3a37f21bb2daf0d191781/src/content/post/2511-november-release.md) и [архив проекта](https://github.com/CachyOS/website/blob/c36bc079e75a274320f3a37f21bb2daf0d191781/src/utils/utils.ts). Фиксированы не только имена: сверяем SHA-256 и отделённую OpenPGP-подпись с отпечатком `882DCFE48E2051D48E2562ABF3B607488DB35A47`. [Открытый ключ](https://github.com/CachyOS/CachyOS-PKGBUILDS/blob/0669f94df9b4970886b3c3bbee13711aab7db5a8/cachyos-keyring/cachyos.gpg) лежит в тестах, keyring временный. Явная страница HTML вместо файла — промах доставки, даже при HTTP 200. Для бинарного файла несовпадение хеша или подписи запрещает загрузку ISO в QEMU; другой хеш не подбирается.
+
+Бинарники собраны из проверяемого checkout с `Cargo.lock` и `package-lock.json`. Гость не загружает приложение или библиотеки из интернета. В Live-профиле возможны `ID=arch` и `NAME=CachyOS`: [исходный файл](https://github.com/CachyOS/CachyOS-Live-ISO/blob/d876de294c45533c58fb03f4917e962abffc8f36/archiso/airootfs/etc/os-release). Для этой пары CLI также проверяет `DISTRIB_ID=CachyOS` в `/etc/cachyos-release`, сохраняя буквальный `os_id`. Диагностика не разрешает запись.
 
 ## Границы песочницы
 
 1. На одноразовом Ubuntu runner запускается QEMU/KVM **не от root**. Зависимости сборки и гипервизора устанавливаются только в этом runner. В рабочем дереве нет ISO или образов дисков.
 2. Ядро и initramfs берутся из проверенного ISO. У гостя два read-only CD: дистрибутив и тестовый носитель. Нет пишущего диска, NIC, SSH, QGA, общих каталогов и передачи хостовых ключей или окружения. Рабочий слой Live находится в RAM.
 3. Тестовая служба использует штатный `systemd.run` и `systemd.mount-extra` только на эту загрузку. Прежде чем читать системную конфигурацию, гостевой скрипт проверяет виртуализацию, метку стенда, read-only mountpoints и отсутствие NIC. Единственный системный управляющий процесс теста работает в госте. **CLI, GUI и наблюдатель окна** запускаются как `liveuser`, с временным HOME/XDG и `no_new_privs`.
-4. Для проверки GUI используется гостевая Plasma, XWayland и наблюдатель `xdotool` с тестового CD. Библиотека наблюдателя не подставляется в окружение MeshPilot. Не устанавливать отсутствующие зависимости GUI и не отключать sandbox WebKit ради положительного результата.
+4. Для проверки GUI используется гостевая Plasma, X11 или XWayland и наблюдатель `xdotool` с тестового CD. Библиотека наблюдателя не подставляется в окружение MeshPilot. Перед окном обе связи WebKitGTK/JavaScriptCoreGTK должны указывать на те же файлы, что и соответствующие soname в `/usr/lib` гостя. Не устанавливать отсутствующие зависимости GUI и не отключать sandbox WebKit ради положительного результата.
 5. Сам тест не вызывает pacman, не меняет DNS, профили, маршруты или правила доступа. До и после сравниваются содержимое базы `/var/lib/pacman`, конфигурация pacman и mirrorlist, настройки NetworkManager, systemd-networkd/resolved, `/etc/resolv.conf` (ссылка и данные), адреса и маршруты IPv4/IPv6. Это проверка перечисленного состояния на границах задания, не доказательство неизменности каждого байта гостевой ОС. Сами данные и их хеши не отправляются наружу.
 
 ## Наблюдение на неизменённом ISO
@@ -50,10 +49,11 @@ cargo build --locked -p meshpilot-cli
 npm --prefix apps/desktop ci
 npm --prefix apps/desktop run tauri -- build --debug --no-bundle --ci -- --locked
 media_dir="$(mktemp -d)"
-bash tests/cachyos-vm/media.sh "$media_dir"
-bash tests/cachyos-vm/run.sh "$media_dir/cachyos-desktop-linux-260809.iso" target/debug/meshpilot apps/desktop/src-tauri/target/debug/meshpilot-desktop
+release=251129
+bash tests/cachyos-vm/media.sh "$media_dir" "$release"
+bash tests/cachyos-vm/run.sh "$media_dir/cachyos-desktop-linux-$release.iso" target/debug/meshpilot apps/desktop/src-tauri/target/debug/meshpilot-desktop "$release"
 ```
 
-Сценарий получения образа не перезаписывает существующие файлы. По завершении носитель можно удалить вместе с одноразовым стендом. Локальная проверка правила приёмки без гипервизора: `python3 tests/cachyos-vm/test_verdict.py`. Не запускать `guest.py` как утилиту диагностики реальной машины.
+Чтобы воспроизвести отрицательное наблюдение на штатном 260809, задать `release=260809` в том же примере. Без явного аргумента скрипты сохраняют исходный профиль 260809. Существующие файлы не перезаписываются. Носитель удаляется вместе с одноразовым стендом. Локальные тесты выбора носителя и правил приёмки: `python3 -m unittest discover -s tests/cachyos-vm`. Не запускать `guest.py` как диагностику реальной машины.
 
-Workflow `.github/workflows/cachyos-vm.yml` запускается при push изменений приложения, lockfiles или самого стенда. Для уже размещённого в основной ветке workflow возможен ручной запуск на нужном ref. Обычные изменения документации не должны заново качать ISO. Зарегистрированные результаты конкретного коммита — в [STATE](STATE.md).
+Workflow `.github/workflows/cachyos-vm.yml` при push изменений приложения, lockfiles или стенда проверяет 251129; после появления workflow в основной ветке ручной `workflow_dispatch` позволяет выбрать один из двух выпусков. Ни один вариант не принимает `FAIL GUI_RUNTIME` за успех. Изменения только документации не скачивают ISO. Результаты для конкретных SHA — в [STATE](STATE.md).

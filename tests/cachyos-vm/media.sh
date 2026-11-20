@@ -18,15 +18,26 @@ printf '%s  %s\n' 7f17cd0469e2b986d6c11ad8481a67705a20c5f968b198321a603567c40055
 mkdir -m 700 "$work/gpg"
 gpg --no-options --batch --homedir "$work/gpg" --dearmor --output "$work/keyring.gpg" "$here/iso-signing-key.asc"
 opts=(--fail --location --silent --show-error --proto '=https' --proto-redir '=https' --connect-timeout 12)
-bases=("https://iso.cachyos.org/desktop/$release" "https://mirror.cachyos.org/ISO/desktop/$release"
-       "https://cdn77.cachyos.org/ISO/desktop/$release" "https://us.cachyos.org/ISO/desktop/$release"
-       "https://downloads.sourceforge.net/project/cachyos-arch/gui-installer/desktop/$release")
+sf="https://downloads.sourceforge.net/project/cachyos-arch/gui-installer/desktop/$release"
+bases=("https://iso.cachyos.org/desktop/$release" "https://mirror.cachyos.org/ISO/desktop/$release" "$sf")
+if [[ $release == 251129 ]]; then
+  # Архивный выпуск: сначала архив проекта, затем зеркала из объявления этого выпуска.
+  bases=("$sf" "https://cdn77.cachyos.org/ISO/desktop/$release" "https://mirror.cachyos.org/ISO/desktop/$release"
+         "https://us.cachyos.org/ISO/desktop/$release" "https://iso.cachyos.org/desktop/$release"
+         "https://mirrors.tuna.tsinghua.edu.cn/cachyos/desktop/$release" "https://archlinux.gay/cachy/ISO/desktop/$release")
+fi
 fetch() {
-  local file=$1 seconds=$2 bytes=$3 output=$4 base
+  local file=$1 seconds=$2 bytes=$3 output=$4 base code size
   for base in "${bases[@]}"; do
-    if curl "${opts[@]}" --max-time "$seconds" --max-filesize "$bytes" "$base/$file" -o "$output"; then
-      return 0
+    if ! code=$(curl "${opts[@]}" --max-time "$seconds" --max-filesize "$bytes" -w '%{http_code}' "$base/$file" -o "$output"); then
+      echo "::notice file=tests/cachyos-vm/media.sh::$base/$file — ошибка передачи, HTTP $code"; continue
     fi
+    size=$(stat -c %s "$output")
+    if html_response "$output"; then
+      echo "::notice file=tests/cachyos-vm/media.sh::$base/$file — получен HTML, HTTP $code, $size байт"; continue
+    fi
+    echo "::notice file=tests/cachyos-vm/media.sh::$base/$file — HTTP $code, $size байт; ещё не проверен"
+    return 0
   done
   echo "::error file=tests/cachyos-vm/media.sh::Не удалось получить $file ни из одного заданного источника" >&2
   return 1

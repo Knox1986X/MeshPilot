@@ -1,47 +1,39 @@
 # MeshPilot · контрольная точка
 
-**Дата:** 2026-11-20 UTC. **Этап:** 1, каркас только для чтения. **Ветка:** `arena/9c5d61a6-meshpilot` от `018d537`. **PR:** [Knox1986X/MeshPilot#1](https://github.com/Knox1986X/MeshPilot/pull/1), открыт в `main`, не слит. Релиза нет.
+**2026-11-20 UTC · этап 1, только чтение.** Ветка `arena/9c5d61a6-meshpilot` от `018d537`. [PR №1](https://github.com/Knox1986X/MeshPilot/pull/1) открыт в `main`. Слияния, релиза и перехода к этапу 2 нет.
 
-## Доступ и результат
+## Приёмка CachyOS: CLI прошёл, нативное окно заблокировано
 
-- **Команды выполнены:** `git ls-remote`, `gh repo view`, `git push -u origin arena/9c5d61a6-meshpilot`, `gh pr create`, `gh pr view 1`. Проверены чтение, создание удалённой ветки записью и создание PR. Создание другой локальной ветки — **не проверено**: ветка сессии закреплена. В `main` не пушили.
-- **Dropbox Arena:** только `/MeshPilot/`; папка создана, контрольная точка записана и прочитана. Обновления по ожидаемой ревизии, без перезаписи чужих правок. Во время параллельной промежуточной записи был HTTP 429. Полный архив проектных документов `/MeshPilot/design/MeshPilot-stage-1-6fa6b5f.zip` записан отдельно, content hash совпал. Это не OAuth приложения.
-- **Закоммичено:** исходный собираемый каркас `81d6b9d`; контракты, проверка HOME/XDG и отказ от root GUI — `6fa6b5f`. Текущее содержимое и границы — в PR, [дерево с пометками](../README.md#дерево-и-границы-этапа).
-- **Файлы созданы:** workspace из `meshpilot-core`, `meshpilot-linux`, `meshpilot-cli`, их тесты и `Cargo.lock`; `apps/desktop/src` (Svelte/TypeScript), `src-tauri` (минимальные оконные capabilities, свой lockfile), `tests`, `.github/workflows/ci.yml`. Нативное окно на Linux отказывается запускать WebView с effective UID 0.
-- **Проектные артефакты:** [архитектура и IPC](ARCHITECTURE.md), [обе таблицы переходов](STATE-MACHINES.md), [бэкап и две JSON Schema](BACKUP.md), [требования 01–100](ROADMAP.md), [решения](DECISIONS.md). Службы, Polkit, независимый таймер, установка пакетов, шифрование и Android **предложены, не реализованы**.
-
-## Проверки
-
-Из корня, в Debian 12. Локальный Rust stable 1.88.0 и проверенные по индексу crates.io зависимости лежали вне репозитория (`PATH=/tmp/mp-tooling/rust/bin:$PATH`, `CARGO_HOME=/tmp/mp-tooling/cargo-home` для workspace). CI использует закреплённый stable 1.95.0. Команды для обычной среды — в [README](../README.md#проверки-из-корня).
-
-| Команда выполнена | Наблюдение |
+| Проверка | Наблюдение |
 |---|---|
-| `cargo fmt --all --check`; `cargo clippy --locked --workspace --all-targets -- -D warnings` | Успех |
-| `cargo test --workspace --locked` | **8 тестов**: повторы, подмена плана, граница отмены, точность ID, безопасный разбор OS ID, отчёты/коды и первый запуск с пустым HOME/XDG |
-| `cargo build --workspace --locked`; `cargo package -p meshpilot-core --locked` | Бинарник собран; Cargo-архив ядра собран и проверен компиляцией. Это не PKGBUILD |
-| `target/debug/meshpilot status --json`; `target/debug/meshpilot doctor --json` | `status`: код 0, `debian`, наблюдения `null`. `doctor`: код 3, не CachyOS, pacman и Flatpak не обнаружены |
-| `python3 tests/project.py`; `PYTHONPATH=/tmp/mp-tooling/schema-check python3 tests/backup_schema.py` | 3 проверки проекта и 2 проверки структуры схем прошли; `jsonschema==4.25.1`. Шифрование этим не проверено |
-| В `apps/desktop`: `npm ci`, `npm run check`, `npm run build` | Проверка типов: 0 ошибок и предупреждений; production-ресурсы собраны, зависимости и шрифты локальны во время работы |
-| В `apps/desktop`: `LD_LIBRARY_PATH=/tmp/al2023/lib CHROMIUM_BINARY=/tmp/chromium npm run test:layout` | Chromium 138: 4/2/1 колонки при 1920/1280/768 px, сайдбар 260 px без перекрытия, четыре «нет данных», навигация без внешних запросов |
-| `cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check`; `git diff --check` | Успех |
-| `git grep` по идентификаторам приложения, D-Bus и units; `cargo tree -p meshpilot-core --locked --edges normal` | Префикс `io.github.Knox1986X.MeshPilot`, имена `meshpilot-agent.service`, `meshpilot-helper.service`, `meshpilot-*.timer`; у ядра нет Linux/GUI-зависимостей |
-| `gh pr checks 1`; `gh run view 44804900872 --json jobs,conclusion` | [Прогон для 81d6b9d](https://github.com/Knox1986X/MeshPilot/actions/runs/44804900872): workspace и desktop прошли, включая нативную сборку и появление окна на Xvfb |
+| Источник | Официальный Desktop Live 260809. На одноразовом runner проверены закреплённый SHA-256 ISO и отделённая подпись ключом CachyOS. [Источники и команды](VM-SMOKE.md) |
+| Первый запуск, `5ac336f` | [Сборка и проверка медиа прошли](https://github.com/Knox1986X/MeshPilot/actions/runs/44810505499), но шаг запуска VM вернул 1 без гостевого отчёта. Первопричина этого отказа **не установлена** |
+| Повтор, `73a5f2f` | [Результат реального гостя](https://github.com/Knox1986X/MeshPilot/actions/runs/44811131168/job/136547642019): `GUEST`, `CLI`, `UNCHANGED`, `FAIL GUI_RUNTIME`. QEMU завершился с 0, проверяющий сценарий — с 1 |
+| `meshpilot status --json` | Внутри гостя, от `liveuser`: код 0; `read_only: true`, CachyOS подтверждена, `os_id` совпал с исходным ID системы. Интернет, DNS, обновления, исправления и дата проверки — `null`, не нули |
+| `meshpilot doctor --json --dry-run` | Внутри гостя, от `liveuser`: код 0, CachyOS и pacman обнаружены. Команды оставили временный HOME/XDG пустым |
+| `meshpilot-desktop` | Гостевой загрузчик не нашёл `libjavascriptcoregtk-4.1.so.0` и `libwebkit2gtk-4.1.so.0`. Остановились **до запуска приложения**. Видимое окно в CachyOS **не проверено**; браузер и Ubuntu не заменяют это свидетельство |
+| Изоляция | QEMU/KVM без root, NIC, пишущего диска и общих каталогов; два read-only CD. Гостевые пакеты не устанавливали. Сравнение базы pacman, конфигурации сети, DNS, зеркал, адресов и маршрутов до/после совпало. Это не проверка всех файлов ОС |
 
-При перепроверке `6fa6b5f` workspace и браузерные проверки прошли; шаг подготовки системных библиотек на новом runner занял более восьми минут. Для CI задан отдельный таймаут 6 минут на этот шаг и ограничение повторов APT. Результаты относятся к указанным SHA. **Актуальное заключение для головы ветки:** [Checks PR №1](https://github.com/Knox1986X/MeshPilot/pull/1/checks), команда `gh pr checks 1`.
+## Что в ветке
 
-## Ограничения и открытые вопросы
+- Закоммичено: каркас `81d6b9d`, проектные контракты и проверка первого запуска `6fa6b5f`, ограниченная по времени подготовка CI `450cce0`, стенд и исправление идентификации CachyOS `5ac336f`, непривилегированный доступ QEMU к KVM `73a5f2f`.
+- Реализованы `meshpilot-{core,linux,cli}`, `status`/`doctor`, типизированный план и `JobBook` в памяти, `apps/desktop` с Tauri v2/Svelte/TypeScript. Оконные capabilities только своего окна, запрет запуска WebView с EUID 0. Неизвестные метрики не имитируются. [Дерево и команды](../README.md).
+- `crates/meshpilot-linux` отличает нативный `ID=cachyos` от разметки Live `ID=arch`, `NAME=CachyOS` с отдельным совпадающим маркером. Буквальный `os_id` сохраняется; branding без подтверждения не даёт положительного результата.
+- Созданы `tests/cachyos-vm/`, `.github/workflows/cachyos-vm.yml`, общий скрипт зависимостей только для одноразового runner. Окно считается найденным лишь при совпадении видимости, заголовка и PID живого процесса.
+- После наблюдения в госте добавлена пассивная проверка двух файлов WebKitGTK в `doctor` **только на подтверждённой CachyOS**. Они нужны GUI, но не CLI. В стенде добавлена отдельная проверка ответа гостевого дисплея. Локальные проверки прошли; проверка этих изменений в госте ещё не зарегистрирована.
+- [Архитектура и IPC](ARCHITECTURE.md), [таблицы переходов](STATE-MACHINES.md), [схемы бэкапа](BACKUP.md), [решения](DECISIONS.md), [все 100 требований](ROADMAP.md). Службы, Polkit, запись сети, транзакции, AEAD и Android **предложены, не реализованы**. Сохранения `JobBook` после перезапуска нет.
 
-- Нативный запуск **локально не проверен**: в образе нет WebKitGTK 4.1 и дисплея. Браузерный предпросмотр не подменяет нативный smoke-тест. На реальной CachyOS и Android **не проверено**; сборка/окно в CI — Ubuntu VM.
-- `JobBook` живёт в памяти. Нет долговечного задания после перезапуска, реальных замеров CPU/сети, списка обновлений или гарантий отката. Не тестировали системные изменения, не трогали реальную машину.
-- Лицензия ещё не выбрана; `cargo package` предупреждает о метаданных. Публикация отключена. Открытый вопрос для приёмки: поведение оболочки в графической сессии CachyOS.
+## Другие выполненные проверки
 
-## Продолжение · приёмка CachyOS Live
+- Локально: `cargo fmt --all --check`, `cargo clippy --workspace --locked --all-targets -- -D warnings`, `cargo test --workspace --locked` (10 тестов), `cargo build --workspace --locked`. `cargo package -p meshpilot-core --locked` проверил компиляцию архива; это не PKGBUILD. Лицензия пока не выбрана, публикация выключена.
+- Debian 12: `target/debug/meshpilot status --json` → 0 (`debian`, `cachyos: false`, наблюдения `null`); `target/debug/meshpilot doctor --json --dry-run` → 3 (другая ОС, нет pacman и Flatpak). Локально KVM и графической среды нет. Rust 1.88.0 в этом sandbox, CI на stable 1.95.0.
+- `python3 tests/project.py` — 3 проверки; `python3 tests/backup_schema.py` — 2 структурные проверки (`jsonschema==4.25.1`, не криптография); `python3 tests/cachyos-vm/test_verdict.py` — 4 проверки протокола; `bash -n` для скриптов стенда и `git diff --check`.
+- [Обычный CI на 73a5f2f](https://github.com/Knox1986X/MeshPilot/actions/runs/44811143863): workspace и desktop прошли. `npm ci/check/build`, браузерная проверка 1920/1280/768 px без удалённых запросов, нативная сборка и видимое окно на **Ubuntu/Xvfb**. [Текущие Checks PR](https://github.com/Knox1986X/MeshPilot/pull/1/checks) не заменяют результаты для указанных SHA.
 
-- Для `450cce0` [обе проверки CI прошли](https://github.com/Knox1986X/MeshPilot/actions/runs/44807685529). `gh pr view 1`, `git ls-remote`, `git push --dry-run` выполнены; входная копия `/MeshPilot/STATE.md` прочитана и совпала с Git. Новая ветка и второй PR не создавались.
-- Локальный Debian без QEMU и `/dev/kvm`, готового образа нет. В профиле CachyOS Desktop **ID=arch**, поэтому исправлена пассивная идентификация. Исходные сведения дистрибутива как данные, не команды.
-- Файлы созданы: `.github/workflows/cachyos-vm.yml`, `tests/cachyos-vm/`, общий скрипт зависимостей для одноразовых runner. GUI-проверка требует видимого окна с PID именно запущенного приложения. Новых системных возможностей приложение не получило.
-- Выполнены `cargo fmt --all`, `cargo clippy --locked --workspace --all-targets -- -D warnings`, `cargo test --locked --workspace` (**10 тестов**), `cargo build --locked --workspace`, `python3 tests/cachyos-vm/test_verdict.py` (3 теста). Debian остаётся `debian`, код doctor — 3. Это не результат прогона внутри CachyOS.
+## Доступ и ограничения
 
-- Закоммичено `5ac336f`, push текущей ветки выполнен. [Первый VM-прогон](https://github.com/Knox1986X/MeshPilot/actions/runs/44810505499) подтвердил наличие устройства KVM, SHA-256 и подпись ISO и сборку обоих бинарников. Шаг запуска гостя сразу завершился с кодом 1 **без гостевого отчёта** — ни CLI, ни окно на CachyOS этим не подтверждены. Доступ к устройству для непривилегированного QEMU сделан явным: временный ACL только для UID runner, проверка открытия и версии KVM API, затем возврат ACL. Причина предыдущего отказа по одной аннотации точно не установлена.
+Команды выполнены: `git ls-remote`, `gh repo view`, push в закреплённую ветку, `gh pr create`, `gh pr view 1`, `gh run view`. Проверены чтение, запись в эту ветку и PR. Запись в другие ветки не проверяли. Реальную машину не меняли.
 
-**Следующий шаг:** получить и проверить гостевой протокол повторной приёмки в одноразовой VM.
+Dropbox Arena: запись с ожидаемой ревизией и чтение только в `/MeshPilot/`. Исходная контрольная точка сверена с Git; промежуточные обновления STATE записаны без перезаписи чужих правок. Проектный архив `/MeshPilot/design/MeshPilot-stage-1-6fa6b5f.zip` — не релиз и не бэкап пользователя. OAuth App Folder самого приложения **не реализован**.
+
+**Следующий шаг:** проверить дополненную диагностику `doctor` и ответ гостевого дисплея в том же подписанном Live ISO, не устанавливая пакеты.

@@ -75,6 +75,25 @@ def system_state():
     return h.digest()
 
 
+def display_ready(user, env, account):
+    # Не считать наличия переменной DISPLAY доказательством работы графического сеанса.
+    deadline = time.monotonic() + 90
+    while time.monotonic() < deadline:
+        try:
+            lines = user(["systemctl", "--user", "show-environment"], timeout=3).splitlines()
+            values = dict(line.split("=", 1) for line in lines if "=" in line)
+            if re.fullmatch(r":\d+(?:\.\d+)?", values.get("DISPLAY", "")):
+                env["DISPLAY"] = values["DISPLAY"]
+                env["XAUTHORITY"] = values.get("XAUTHORITY", account.pw_dir + "/.Xauthority")
+                geometry = user([MEDIA / "window-observer", "getdisplaygeometry"], timeout=3)
+                if re.fullmatch(r"[1-9]\d* [1-9]\d*", geometry.strip()):
+                    return True
+        except subprocess.SubprocessError:
+            pass
+        time.sleep(1)
+    return False
+
+
 def run_checks(emit, home):
     account = pwd.getpwnam("liveuser")
     check(account.pw_uid > 0, "LIVE_UID")
@@ -96,27 +115,21 @@ def run_checks(emit, home):
     doctor = json.loads(user([MEDIA / "meshpilot", "doctor", "--json", "--dry-run"]))
     checks = {c["id"]: c["finding"] for c in doctor["checks"]}
     check(doctor["read_only"] is True and checks["os"] == checks["pacman"] == "detected", "CLI_DOCTOR")
+    for component, soname in [("webkitgtk", "libwebkit2gtk-4.1.so.0"), ("javascriptcoregtk", "libjavascriptcoregtk-4.1.so.0")]:
+        row = next((c for c in doctor["checks"] if c["id"] == f"desktop-{component}"), None)
+        expected = "detected" if (Path("/usr/lib") / soname).is_file() else "missing"
+        check(row is not None and row["required"] is False and row["finding"] == expected, "CLI_GUI_DIAGNOSTIC")
     check(not any(Path(home).iterdir()), "CLI_XDG_WRITE")
     emit("CLI")
 
     linked = user(["ldd", MEDIA / "meshpilot-desktop"])
     missing = re.findall(r"^\s*(lib[\w.+-]+) => not found$", linked, re.MULTILINE)
+    session = display_ready(user, env, account)
+    if session:
+        emit("SESSION")
     if missing:
         raise Failure("GUI_RUNTIME " + " ".join(sorted(set(missing))[:20]))
-    # Используем DISPLAY именно гостевого сеанса Plasma, не передаём окружение хоста.
-    deadline = time.monotonic() + 100
-    while time.monotonic() < deadline:
-        try:
-            values = dict(line.split("=", 1) for line in user(["systemctl", "--user", "show-environment"]).splitlines() if "=" in line)
-            if re.fullmatch(r":\d+(?:\.\d+)?", values.get("DISPLAY", "")):
-                env["DISPLAY"] = values["DISPLAY"]
-                env["XAUTHORITY"] = values.get("XAUTHORITY", account.pw_dir + "/.Xauthority")
-                break
-        except subprocess.CalledProcessError:
-            pass
-        time.sleep(1)
-    else:
-        raise Failure("NO_GRAPHICAL_SESSION")
+    check(session, "NO_GRAPHICAL_SESSION")
     env.update(GDK_BACKEND="x11", WEBKIT_DISABLE_DMABUF_RENDERER="1", LIBGL_ALWAYS_SOFTWARE="1")
     try:
         user([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer"], timeout=55)

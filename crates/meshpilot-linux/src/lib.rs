@@ -82,12 +82,20 @@ pub fn status() -> StatusReport {
     StatusReport::unmeasured(platform.id, platform.cachyos)
 }
 
-fn executable(path: &Path) -> Finding {
+// На CachyOS используются системные пути Arch. Это проверка файла, не dlopen/ldd.
+enum FileRole {
+    Utility,
+    DesktopLibrary,
+}
+
+fn file_finding(path: &Path, role: FileRole) -> Finding {
     match fs::metadata(path) {
+        Ok(meta) if !meta.is_file() => Finding::Unsupported,
+        Ok(_) if matches!(role, FileRole::DesktopLibrary) => Finding::Detected,
         #[cfg(unix)]
         Ok(meta) => {
             use std::os::unix::fs::PermissionsExt;
-            if meta.is_file() && meta.permissions().mode() & 0o111 != 0 {
+            if meta.permissions().mode() & 0o111 != 0 {
                 Finding::Detected
             } else {
                 Finding::Unsupported
@@ -128,9 +136,25 @@ pub fn doctor() -> DoctorReport {
         checks.push(Check {
             id,
             required,
-            finding: executable(Path::new(path)),
+            finding: file_finding(Path::new(path), FileRole::Utility),
             detail: path.into(),
         });
+    }
+    if platform.cachyos == Some(true) {
+        for (id, path) in [
+            ("desktop-webkitgtk", "/usr/lib/libwebkit2gtk-4.1.so.0"),
+            (
+                "desktop-javascriptcoregtk",
+                "/usr/lib/libjavascriptcoregtk-4.1.so.0",
+            ),
+        ] {
+            checks.push(Check {
+                id,
+                required: false, // Только для окна, CLI работает без WebView.
+                finding: file_finding(Path::new(path), FileRole::DesktopLibrary),
+                detail: format!("для окна: {path}; проверяется наличие файла, не запуск"),
+            });
+        }
     }
     DoctorReport {
         schema_version: SCHEMA_VERSION,

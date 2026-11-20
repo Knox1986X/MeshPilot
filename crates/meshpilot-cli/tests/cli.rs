@@ -44,6 +44,16 @@ fn doctor_exit_matches_required_checks_even_outside_cachyos() {
             .iter()
             .any(|c| c["id"] == "os" && c["required"] == true)
     );
+    let on_cachyos = checks
+        .iter()
+        .any(|c| c["id"] == "os" && c["finding"] == "detected");
+    for id in ["desktop-webkitgtk", "desktop-javascriptcoregtk"] {
+        let check = checks.iter().find(|c| c["id"] == id);
+        assert_eq!(check.is_some(), on_cachyos);
+        if let Some(check) = check {
+            assert_eq!(check["required"], false, "окно не обязательно для CLI");
+        }
+    }
     let ready = checks
         .iter()
         .all(|c| c["required"] != true || c["finding"] == "detected");

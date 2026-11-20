@@ -3,7 +3,7 @@ import re
 import sys
 from pathlib import Path
 
-EXPECTED = ["GUEST", "CLI", "WINDOW", "UNCHANGED", "PASS"]
+EXPECTED = ["GUEST", "CLI", "SESSION", "WINDOW", "UNCHANGED", "PASS"]
 
 
 def verdict(lines, run_id, qemu_status):

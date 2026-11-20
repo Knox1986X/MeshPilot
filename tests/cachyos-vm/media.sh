@@ -10,7 +10,7 @@ dest=${1:?Нужен пустой каталог для ISO}
 mkdir -p -- "$dest"
 [[ ! -e $dest/$name && ! -e $dest/$name.sig ]] || { echo "Не перезаписываем имеющееся медиа" >&2; exit 2; }
 work=$(mktemp -d -- "$dest/.media.XXXXXXXX"); trap 'rm -rf -- "$work"' EXIT
-# Хеш из CachyOS/wiki, ключ из CachyOS/CachyOS-PKGBUILDS. Источники в README.md.
+# Хеш из CachyOS/wiki, ключ из CachyOS/CachyOS-PKGBUILDS. Источники в docs/VM-SMOKE.md.
 printf '%s  %s\n' 7f17cd0469e2b986d6c11ad8481a67705a20c5f968b198321a603567c4005576 "$here/iso-signing-key.asc" | sha256sum --check --status
 mkdir -m 700 "$work/gpg"
 gpg --no-options --batch --homedir "$work/gpg" --dearmor --output "$work/keyring.gpg" "$here/iso-signing-key.asc"

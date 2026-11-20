@@ -14,6 +14,13 @@ class Verdict(unittest.TestCase):
             with self.assertRaises(ValueError):
                 verdict(self.trace(phases), "current", 0)
 
+    def test_display_is_not_the_meshpilot_window(self):
+        trace = self.trace(["GUEST", "CLI", "SESSION", "UNCHANGED", "FAIL GUI_RUNTIME libwebkit2gtk-4.1.so.0"])
+        with self.assertRaisesRegex(ValueError, "SESSION, UNCHANGED, FAIL GUI_RUNTIME"):
+            verdict(trace, "current", 0)
+        with self.assertRaises(ValueError):
+            verdict(self.trace(["GUEST", "CLI", "SESSION", "UNCHANGED", "PASS"]), "current", 0)
+
     def test_replay_or_timeout_is_not_success(self):
         for nonce, rc in [("previous", 0), ("current", 124)]:
             with self.assertRaises(ValueError):

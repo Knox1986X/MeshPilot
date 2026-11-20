@@ -8,6 +8,11 @@ on:
       - .github/scripts/desktop-deps.sh
       - tests/cachyos-vm/**
       - tests/native-window.sh
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - crates/**
+      - apps/desktop/**
 permissions:
   contents: read
 concurrency:

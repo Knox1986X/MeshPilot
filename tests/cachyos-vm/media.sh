@@ -44,7 +44,16 @@ fetch() {
 }
 # Источники файла и подписи могут отличаться. Ошибка проверки не вызывает смены источника.
 fetch "$name.sig" 25 65536 "$work/media.sig"
-fetch "$name" 300 5368709120 "$work/media.iso"
+if [[ $release == 251129 ]]; then
+  rc=0; python3 "$here/archive.py" "$work" || rc=$?
+  case $rc in
+    0) ;;
+    75) fetch "$name" 840 5368709120 "$work/media.iso" ;;
+    *) exit "$rc" ;;
+  esac
+else
+  fetch "$name" 300 5368709120 "$work/media.iso"
+fi
 printf '%s  %s\n' "$sha" "$work/media.iso" | sha256sum --check
 gpgv --homedir "$work/gpg" --keyring "$work/keyring.gpg" --status-fd 1 "$work/media.sig" "$work/media.iso" > "$work/status"
 awk -v expected="$signer" '$1 == "[GNUPG:]" && $2 == "VALIDSIG" && ($3 == expected || $NF == expected) {ok=1} END {exit !ok}' "$work/status"

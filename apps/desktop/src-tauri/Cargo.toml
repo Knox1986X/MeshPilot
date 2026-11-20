@@ -1,0 +1,19 @@
+[package]
+name = "meshpilot"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+
+[[bin]]
+name = "meshpilot-desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "=2.7.6", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.7", features = [] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

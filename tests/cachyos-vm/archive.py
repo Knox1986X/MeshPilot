@@ -12,7 +12,31 @@ LIMIT = 5 * 1024**3
 
 
 class NoRange(Exception):
-    pass
+    """Обычная ограниченная передача, если архив не объявляет размер для диапазонов."""
+
+
+CURL = ["curl", "-q", "--fail", "--silent", "--show-error", "--location", "--max-redirs", "6",
+        "--proto", "=https", "--proto-redir", "=https", "--connect-timeout", "12"]
+
+
+def size_from_head(reply):
+    match = re.fullmatch(r"200 ([1-9][0-9]{0,9})", reply.strip())
+    if not match:
+        raise NoRange()
+    size = int(match[1])
+    if not 1024**2 <= size <= LIMIT:
+        raise ValueError("Размер в HEAD за пределами лимитов ISO")
+    return size
+
+
+def archive_size():
+    # HEAD не скачивает тело и не накладывает однобайтовый лимит на цепочку редиректов.
+    head = subprocess.run([*CURL, "--head", "--max-time", "25", "-o", "/dev/null",
+                           "-w", "%{http_code} %header{content-length}", URL],
+                          capture_output=True, text=True, timeout=33)
+    if head.returncode:
+        raise NoRange()
+    return size_from_head(head.stdout)
 
 
 def ranges(total):
@@ -34,25 +58,23 @@ def verify_range(reply, size, first, last, total):
 
 
 def part(path, first, last, total):
-    seconds = 25 if total is None else 720
-    result = subprocess.run(["curl", "-q", "--fail", "--silent", "--show-error", "--location",
-                             "--proto", "=https", "--proto-redir", "=https", "--connect-timeout", "12",
+    seconds = 720
+    result = subprocess.run([*CURL,
                              "--max-time", str(seconds), "--speed-limit", "32768", "--speed-time", "45",
                              "--range", f"{first}-{last}", "--max-filesize", str(last-first+1), "-o", path,
                              "-w", "%{http_code} %header{content-range}", URL],
                             stdout=subprocess.PIPE, text=True, timeout=seconds+8)
     size = path.stat().st_size if path.exists() else 0
-    if total is None and result.stdout.startswith("200 "):
-        raise NoRange()
     if result.returncode:
-        raise ValueError(f"Диапазон {first}–{last}: curl={result.returncode}, получено {size} байт")
+        status = re.match(r"[0-9]{3}", result.stdout)
+        raise ValueError(f"Диапазон {first}–{last}: HTTP {status[0] if status else 0}, curl={result.returncode}, получено {size} байт")
     return verify_range(result.stdout, size, first, last, total)
 
 
 def download(dest):
     with tempfile.TemporaryDirectory(dir=dest) as tmp:
         work = Path(tmp)
-        total = part(work / "probe", 0, 0, None)
+        total = archive_size()
         spans = ranges(total)
         print(f"::notice file=tests/cachyos-vm/archive.py::Архив сообщил размер {total} байт, четыре диапазона", flush=True)
         files = [work / str(i) for i in range(len(spans))]
@@ -75,7 +97,7 @@ if __name__ == "__main__":
     try:
         download(Path(sys.argv[1]))
     except NoRange:
-        print("Архив не поддержал Range; допустима обычная ограниченная передача")
+        print("Архив не объявил размер по HEAD; допустима обычная ограниченная передача")
         sys.exit(75)
     except (ValueError, OSError, subprocess.SubprocessError) as e:
         print(f"::error file=tests/cachyos-vm/archive.py::Загрузка архива не завершена: {e}")

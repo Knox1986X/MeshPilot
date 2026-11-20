@@ -4,13 +4,13 @@ set -euo pipefail
 trap 'echo "::error file=tests/cachyos-vm/run.sh,line=$LINENO::Сбой на строке $LINENO" >&2' ERR
 here=$(cd -- "$(dirname -- "$0")" && pwd)
 source "$here/fixtures.sh"
-select_fixture "${4-260809}" || exit 2
+profile=${4-260809}; select_fixture "$profile" || exit 2
 if (( EUID == 0 || $# < 3 || $# > 4 )); then echo "Нужны обычный пользователь, проверенный ISO, CLI и GUI" >&2; exit 2; fi
 iso=$(realpath -- "$1"); cli=$(realpath -- "$2"); desktop=$(realpath -- "$3")
 [[ -r /dev/kvm && -w /dev/kvm ]] || { echo "::error::KVM недоступен обычному пользователю"; exit 1; }
 [[ -x $cli && -x $desktop ]] || { echo "::error::Испытуемые бинарники не найдены"; exit 1; }
 # Не доверять имени образа, в том числе при запуске вручную после скачивания.
-printf '%s  %s\n' "$sha" "$iso" | sha256sum --check
+bash "$here/verify.sh" "$iso" "$profile"
 work=$(mktemp -d); trap 'rm -rf -- "$work"' EXIT
 if [[ $release != 260809 ]]; then
   # Доказательство исходной комплектации — список внутри уже проверенного ISO, не список с зеркала.

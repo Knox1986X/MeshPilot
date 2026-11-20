@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: Отдельный профиль окна. Два числовых ID относятся к Desktop, handheld-260628 — к Handheld Plasma.
+        description: Профиль полной проверки окна. 260809 — контрольный Desktop без WebKitGTK 4.1.
         type: choice
         default: "handheld-260628"
-        options: ["handheld-260628", "251129", "260809"]
+        options: ["handheld-260628", "260809"]
   push:
     paths:
       - .github/workflows/cachyos-vm.yml
@@ -29,7 +29,7 @@ jobs:
   live:
     name: CachyOS Live ${{ inputs.profile || 'handheld-260628' }} · CLI и нативное окно
     runs-on: ubuntu-24.04
-    timeout-minutes: 38
+    timeout-minutes: 30
     env:
       ISO_PROFILE: ${{ inputs.profile || 'handheld-260628' }}
       CARGO_PROFILE_DEV_DEBUG: "0"
@@ -40,7 +40,7 @@ jobs:
       - name: Проверить наличие аппаратной виртуализации runner
         run: test -c /dev/kvm && stat -c "%a %U:%G" /dev/kvm
       - name: Проверить SHA-256 и подпись выбранного официального ISO CachyOS
-        timeout-minutes: 17
+        timeout-minutes: 9
         run: bash tests/cachyos-vm/media.sh "$RUNNER_TEMP/cachyos-media" "$ISO_PROFILE"
       - name: Зависимости сборки и QEMU на одноразовом runner
         timeout-minutes: 6

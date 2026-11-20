@@ -28,6 +28,26 @@ class Fixtures(unittest.TestCase):
                                     HERE / "fixtures.sh", path], capture_output=True, timeout=3)
                 self.assertEqual(p.returncode == 0, html)
 
+    def test_archive_is_local_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "archive"
+            out = subprocess.run([HERE / "media.sh", dest, "251129"], capture_output=True, timeout=3)
+            self.assertEqual(out.returncode, 2)
+            self.assertFalse(dest.exists())
+
+    def test_standalone_media_verifier_rejects_missing_signature_and_wrong_digest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            iso = Path(tmp) / "looks-valid.iso"
+            iso.write_bytes(b"not an ISO")
+            cmd = [HERE / "verify.sh", iso, "handheld-260628"]
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+            self.assertEqual(p.returncode, 1)
+            self.assertIn(".sig", p.stderr)
+            Path(f"{iso}.sig").write_bytes(b"not a signature")
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+            self.assertEqual(p.returncode, 1)
+            self.assertIn("SHA-256", p.stderr)
+
     def test_no_profile_overwrites_existing_media(self):
         with tempfile.TemporaryDirectory() as tmp:
             for profile, edition, release in [("260809", "desktop", "260809"), ("251129", "desktop", "251129"),

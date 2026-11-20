@@ -26,4 +26,4 @@ if __name__ == "__main__":
     except (ValueError, OSError) as error:
         print(f"::error file=tests/cachyos-vm/guest.py,title=CachyOS VM::{error}")
         sys.exit(1)
-    print("::notice file=tests/cachyos-vm/guest.py,title=CachyOS VM::CachyOS Live: CLI, окно с совпадающим PID и сравнение состояния прошли")
+    print("::notice file=tests/cachyos-vm/guest.py,title=CachyOS VM::" + " → ".join(EXPECTED) + "; видимое окно с PID MeshPilot")

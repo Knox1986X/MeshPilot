@@ -5,29 +5,19 @@ trap 'echo "::error file=tests/cachyos-vm/media.sh,line=$LINENO::Сбой на �
 here=$(cd -- "$(dirname -- "$0")" && pwd)
 source "$here/fixtures.sh"
 (( $# == 1 || $# == 2 )) || { echo "Укажите каталог и при необходимости выпуск ISO" >&2; exit 2; }
-select_fixture "${2-260809}" || exit 2
-readonly signer=882DCFE48E2051D48E2562ABF3B607488DB35A47
+profile=${2-260809}; select_fixture "$profile" || exit 2
+[[ $profile != 251129 ]] || { echo "Архив не скачиваем автоматически. Нужны готовый ISO 251129 и его .sig для verify.sh" >&2; exit 2; }
 dest=${1:?Нужен пустой каталог для ISO}
 mkdir -p -- "$dest"
 [[ ! -e $dest/$name && ! -e $dest/$name.sig ]] || { echo "Не перезаписываем имеющееся медиа" >&2; exit 2; }
 work=$(mktemp -d -- "$dest/.media.XXXXXXXX"); trap 'rm -rf -- "$work"' EXIT
-# Хеш из CachyOS/wiki, ключ из CachyOS/CachyOS-PKGBUILDS. Источники в docs/VM-SMOKE.md.
-printf '%s  %s\n' 7f17cd0469e2b986d6c11ad8481a67705a20c5f968b198321a603567c4005576 "$here/iso-signing-key.asc" | sha256sum --check --status
-mkdir -m 700 "$work/gpg"
-gpg --no-options --batch --homedir "$work/gpg" --dearmor --output "$work/keyring.gpg" "$here/iso-signing-key.asc"
 opts=(--fail --location --silent --show-error --proto '=https' --proto-redir '=https' --connect-timeout 12)
 sf="https://downloads.sourceforge.net/project/cachyos-arch/gui-installer/$edition/$release"
 bases=("https://iso.cachyos.org/$edition/$release" "https://cdn77.cachyos.org/ISO/$edition/$release" "https://mirror.cachyos.org/ISO/$edition/$release" "$sf")
-if [[ $release == 251129 ]]; then
-  # Архивный выпуск: сначала архив проекта, затем зеркала из объявления этого выпуска.
-  bases=("$sf" "https://cdn77.cachyos.org/ISO/desktop/$release" "https://mirror.cachyos.org/ISO/desktop/$release"
-         "https://us.cachyos.org/ISO/desktop/$release" "https://iso.cachyos.org/desktop/$release"
-         "https://mirrors.tuna.tsinghua.edu.cn/cachyos/desktop/$release" "https://archlinux.gay/cachy/ISO/desktop/$release")
-fi
 fetch() {
   local file=$1 seconds=$2 bytes=$3 output=$4 base code size
   for base in "${bases[@]}"; do
-    if ! code=$(curl "${opts[@]}" --max-time "$seconds" --max-filesize "$bytes" -w '%{http_code}' "$base/$file" -o "$output"); then
+    if ! code=$(curl -q "${opts[@]}" --max-time "$seconds" --max-filesize "$bytes" -w '%{http_code}' "$base/$file" -o "$output"); then
       echo "::notice file=tests/cachyos-vm/media.sh::$base/$file — ошибка передачи, HTTP $code"; continue
     fi
     size=$(stat -c %s "$output")
@@ -46,19 +36,9 @@ if [[ $edition == handheld ]]; then
   fetch "$name.sha256" 25 4096 "$work/published.sha256"
   awk -v sha="$sha" -v name="$name" 'NF==2 && $1==sha && ($2==name || $2=="*"name) {ok++} END {exit !(NR==1 && ok==1)}' "$work/published.sha256"
 fi
-fetch "$name.sig" 25 65536 "$work/media.sig"
-if [[ $release == 251129 ]]; then
-  rc=0; python3 "$here/archive.py" "$work" || rc=$?
-  case $rc in
-    0) ;;
-    75) fetch "$name" 840 5368709120 "$work/media.iso" ;;
-    *) exit "$rc" ;;
-  esac
-else
-  fetch "$name" 300 5368709120 "$work/media.iso"
-fi
-printf '%s  %s\n' "$sha" "$work/media.iso" | sha256sum --check
-gpgv --homedir "$work/gpg" --keyring "$work/keyring.gpg" --status-fd 1 "$work/media.sig" "$work/media.iso" > "$work/status"
-awk -v expected="$signer" '$1 == "[GNUPG:]" && $2 == "VALIDSIG" && ($3 == expected || $NF == expected) {ok=1} END {exit !ok}' "$work/status"
-mv -- "$work/media.sig" "$dest/$name.sig"; mv -- "$work/media.iso" "$dest/$name"
-echo "::notice file=tests/cachyos-vm/media.sh::Проверены SHA-256 и подпись CachyOS $edition $release"
+fetch "$name.sig" 25 65536 "$work/$name.sig"
+fetch "$name" 300 5368709120 "$work/$name"
+bash "$here/verify.sh" "$work/$name" "$profile"
+# Даже при параллельном старте не затереть файл, появившийся после начальной проверки.
+ln -- "$work/$name.sig" "$dest/$name.sig"
+ln -- "$work/$name" "$dest/$name"

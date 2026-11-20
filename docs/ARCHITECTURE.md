@@ -6,7 +6,7 @@
 
 ```text
 Сейчас, пользователь Linux
-  CLI meshpilot → meshpilot-linux → чтение os-release и метаданных двух файлов
+  CLI meshpilot → meshpilot-linux → чтение os-release/маркера CachyOS и метаданных утилит/библиотек окна
   Svelte → WebView Tauri → только собственное окно (drag/minimize/maximize/close)
   meshpilot-core: модели и правила, не делает I/O
 

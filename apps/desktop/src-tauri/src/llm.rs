@@ -89,7 +89,7 @@ pub async fn test_connection(provider: &str, model: &str, key: &str, timeout_sec
                 .and_then(|d| d.as_array())
                 .map(|arr| arr.iter().filter_map(|m| m.get("id").and_then(|v| v.as_str())).collect())
                 .unwrap_or_default();
-            if model.is_empty() || ids.iter().any(|id| *id == model) {
+            if model.is_empty() || ids.contains(&model) {
                 ConnectionTest::result("ok", "соединение установлено, модель доступна", latency)
             } else {
                 ConnectionTest::result("model-unavailable", format!("модель «{model}» не найдена у провайдера"), latency)

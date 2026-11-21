@@ -68,10 +68,10 @@ fn keyring_readable() -> bool {
 /// Возвращает (ключ, местоположение). Порядок: кольцо → сессия.
 pub fn get_secret(state: &SecretsState, account: &str) -> (Option<String>, KeyLocation) {
     if let Ok(entry) = keyring_entry(account) {
-        match entry.get_password() {
-            Ok(secret) => return (Some(secret), KeyLocation::Keyring),
-            Err(_) => {} // NoEntry или кольцо недоступно — пробуем сессию
+        if let Ok(secret) = entry.get_password() {
+            return (Some(secret), KeyLocation::Keyring);
         }
+        // NoEntry или кольцо недоступно — пробуем сессию
     }
     if let Some(secret) = state.session_get(account) {
         return (Some(secret), KeyLocation::Session);
@@ -95,9 +95,8 @@ pub fn store_secret(state: &SecretsState, account: &str, secret: &str) -> KeyLoc
 pub fn delete_secret(state: &SecretsState, account: &str) -> KeyLocation {
     let mut removed_from = KeyLocation::None;
     if let Ok(entry) = keyring_entry(account) {
-        match entry.delete_credential() {
-            Ok(()) => removed_from = KeyLocation::Keyring,
-            Err(_) => {}
+        if entry.delete_credential().is_ok() {
+            removed_from = KeyLocation::Keyring;
         }
     }
     if state.session_get(account).is_some() {

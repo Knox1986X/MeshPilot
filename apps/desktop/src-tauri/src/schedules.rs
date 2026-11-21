@@ -97,17 +97,19 @@ pub(crate) fn supported() -> Result<(), String> {
 }
 
 pub(crate) fn list() -> Vec<ScheduleInfo> {
-    let support = supported();
+    let supported_res = supported();
+    let supported_flag = supported_res.is_ok();
+    let unsupported_reason = supported_res.err(); // move out до замыкания
     SCHEDULES
         .iter()
         .map(|spec| {
             let state = read_state(spec.id);
-            let enabled = if support.is_ok() {
+            let enabled = if supported_flag {
                 timer_is_enabled(spec.id)
             } else {
                 false
             };
-            let next_run = if support.is_ok() && enabled {
+            let next_run = if supported_flag && enabled {
                 timer_next_elapse(spec.id)
             } else {
                 None
@@ -122,8 +124,8 @@ pub(crate) fn list() -> Vec<ScheduleInfo> {
                 last_result: state.last_result,
                 next_run,
                 mode: "report".to_string(),
-                supported: support.is_ok(),
-                unsupported_reason: support.err(),
+                supported: supported_flag,
+                unsupported_reason: unsupported_reason.clone(),
             }
         })
         .collect()

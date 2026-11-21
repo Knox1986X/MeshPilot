@@ -227,7 +227,6 @@ fn delta_percent(prev: CpuTimes, cur: CpuTimes) -> Option<f32> {
 /// системным вызовом, структуры инициализируются занулением и проверяем код возврата.
 #[cfg(unix)]
 fn statvfs_bytes(mount_point: &str) -> Option<(u64, u64, u64)> {
-    use std::os::unix::ffi::OsStrExt;
     let c_path = std::ffi::CString::new(mount_point.as_bytes()).ok()?;
     // SAFETY: st полностью перезаписывается statvfs(2) при успехе; при ошибке (rc != 0)
     // мы не читаем поля. Указатель c_path валиден до конца вызова.
@@ -309,7 +308,7 @@ pub fn collect(state: &MetricsState) -> Snapshot {
                         .collect();
                     (total_pct, core_pcts)
                 }
-                (Some(cur), None) => (None, vec![None; cores.len()]),
+                (Some(_), None) => (None, vec![None; cores.len()]),
                 (None, _) => (None, Vec::new()),
             };
             if let Some(cur) = global {

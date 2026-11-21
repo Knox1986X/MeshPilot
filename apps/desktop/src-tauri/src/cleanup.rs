@@ -136,7 +136,7 @@ fn remove_tree(path: &Path, remove_self: bool) -> (u64, u64) {
     let Ok(entries) = std::fs::read_dir(path) else { return (0, 1) };
     for entry in entries.flatten() {
         let p = entry.path();
-        let Ok(meta) = entry.symlink_metadata() else { failures += 1; continue };
+        let Ok(meta) = entry.metadata() else { failures += 1; continue }; // DirEntry::metadata() не следует по симлинкам
         if meta.file_type().is_symlink() || meta.is_file() {
             match std::fs::remove_file(&p) {
                 Ok(()) => freed = freed.saturating_add(meta.len()),

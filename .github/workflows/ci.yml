@@ -55,12 +55,13 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          cargo fmt --manifest-path src-tauri/Cargo.toml --check > rustfmt.log 2>&1
+          cargo fmt --manifest-path src-tauri/Cargo.toml > fmt-apply.log 2>&1
           code=$?
-          echo "rustfmt завершился с кодом $code"
-          if [ "$code" != "0" ]; then
-            nl -ba rustfmt.log | head -150 | while IFS= read -r line; do echo "::warning::${line}"; done
-          fi
+          echo "cargo fmt exit=$code"
+          cd ../..
+          git --no-pager diff -- apps/desktop/src-tauri/src > /tmp/fmt.diff
+          wc -l /tmp/fmt.diff
+          nl -ba /tmp/fmt.diff | head -110 | while IFS= read -r line; do echo "::warning::${line}"; done
           exit $code
       # Логи раннера из нашего окружения недоступны (blob storage не дотягивается),
       # поэтому ошибки clippy дополнительно выставляем как ANNOTATIONS check-run:

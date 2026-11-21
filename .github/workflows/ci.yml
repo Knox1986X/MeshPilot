@@ -78,7 +78,24 @@ jobs:
           fi
           echo "clippy чист"
       - name: cargo test (юнит-тесты парсеров и инвариантов)
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        id: cargatest
+        run: |
+          set +e
+          cargo test --manifest-path src-tauri/Cargo.toml > cargo-test.log 2>&1
+          code=$?
+          echo "exit=$code" >> "$GITHUB_OUTPUT"
+          echo "cargo test завершился с кодом $code"
+      - name: cargo test (строго)
+        run: |
+          if [ "${{ steps.cargatest.outputs.exit }}" != "0" ]; then
+            grep -E "FAILED|panicked|^failures:|^error" cargo-test.log | head -45 | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+            echo "---- хвост лога cargo test ----"
+            tail -n 40 cargo-test.log
+            exit 1
+          fi
+          tail -n 5 cargo-test.log
       - name: Сборка отладочного бинарника Tauri
         run: npm run tauri -- build --debug --no-bundle --ci
       - name: Нативное окно без root и без изменений хоста

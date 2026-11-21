@@ -61,7 +61,13 @@ jobs:
           cd ../..
           git --no-pager diff -- apps/desktop/src-tauri/src > /tmp/fmt.diff
           echo "bytes: $(wc -c < /tmp/fmt.diff)"
-          echo "::warning::FMTBASE64:$(base64 -w0 /tmp/fmt.diff)"
+          b64=$(base64 -w0 /tmp/fmt.diff)
+          len=${#b64}; chunk=3000; i=0
+          while [ $((i*chunk)) -lt "$len" ]; do
+            i=$((i+1))
+            echo "::warning::FMTPART $i:${b64:$(( (i-1)*chunk )):$chunk}"
+          done
+          echo "::warning::FMTEND parts=$i bytes=$len"
           exit $code
       # Логи раннера из нашего окружения недоступны (blob storage не дотягивается),
       # поэтому ошибки clippy дополнительно выставляем как ANNOTATIONS check-run:

@@ -60,8 +60,15 @@ jobs:
           echo "FMT_EXIT=$code"
           git --no-pager diff --stat -- src-tauri > /tmp/fmtstat.txt
           echo "::warning::FMT_EXIT=$code"
-          nl -ba /tmp/fmtstat.txt | while IFS= read -r line; do echo "::warning::${line}"; done
-          tail -25 fmt.log | while IFS= read -r line; do echo "::warning::${line}"; done
+          git --no-pager diff -- apps/desktop/src-tauri/src | gzip | base64 -w0 > /tmp/fmt.gz.b64
+          b64=$(cat /tmp/fmt.gz.b64)
+          echo "::warning::FMTGZ_BYTES=${#b64}"
+          chunk=3900; i=0
+          while [ $((i*chunk)) -lt "${#b64}" ]; do
+            i=$((i+1))
+            echo "::warning::FMTGZ $i:${b64:$(( (i-1)*chunk )):$chunk}"
+          done
+          echo "::warning::FMTGZ_END parts=$i"
           exit 0
       # Логи раннера из нашего окружения недоступны (blob storage не дотягивается),
       # поэтому ошибки clippy дополнительно выставляем как ANNOTATIONS check-run:

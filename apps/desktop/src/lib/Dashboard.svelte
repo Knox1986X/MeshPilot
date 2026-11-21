@@ -6,11 +6,11 @@
   import CpuCores from "./CpuCores.svelte";
   import InfoPanel from "./InfoPanel.svelte";
   import SnapshotCard from "./SnapshotCard.svelte";
-  import type { Metric, Reading, CpuObservation, RamObservation, RootFsObservation, NetworkIoObservation, InterfaceIo, UptimeObservation, KernelObservation, OsVersionObservation } from "./measurements";
-  let { cpu, ram, disk, net, uptime, kernel, osVersion, selected, choose, pending, refresh }: {
+  import type { Metric, Reading, CpuObservation, RamObservation, RootFsObservation, NetworkIoObservation, InterfaceIo, UptimeObservation, KernelObservation, OsVersionObservation, HostnameObservation } from "./measurements";
+  let { cpu, ram, disk, net, uptime, kernel, osVersion, hostname, selected, choose, pending, refresh }: {
     cpu: Reading<CpuObservation>; ram: Reading<RamObservation>; disk: Reading<RootFsObservation>;
     net: Reading<NetworkIoObservation>; uptime: Reading<UptimeObservation>; kernel: Reading<KernelObservation>;
-    osVersion: Reading<OsVersionObservation>;
+    osVersion: Reading<OsVersionObservation>; hostname: Reading<HostnameObservation>;
     selected: InterfaceIo | null;
     choose: (name: string) => void;
     pending: Record<Metric, boolean>; refresh: (kind: Metric) => void
@@ -27,7 +27,7 @@
     <SnapshotCard kind="disk" sample={disk.value} issue={disk.issue} pending={pending.disk} refresh={() => refresh("disk")} />
     <NetworkCard sample={net.value} issue={net.issue} {selected} {choose} pending={pending.net} refresh={() => refresh("net")} />
   </div>
-  <div class="analysis-grid"><TelemetryChart /><DiskDonut sample={disk.value} /><CpuCores /><InfoPanel {uptime} {kernel} {osVersion} pendingUptime={pending.uptime} pendingKernel={pending.kernel} pendingOsVersion={pending.os_version} refreshUptime={() => refresh("uptime")} refreshKernel={() => refresh("kernel")} refreshOsVersion={() => refresh("os_version")} /></div>
+  <div class="analysis-grid"><TelemetryChart /><DiskDonut sample={disk.value} /><CpuCores /><InfoPanel {uptime} {kernel} {osVersion} {hostname} pendingUptime={pending.uptime} pendingKernel={pending.kernel} pendingOsVersion={pending.os_version} pendingHostname={pending.hostname} refreshUptime={() => refresh("uptime")} refreshKernel={() => refresh("kernel")} refreshOsVersion={() => refresh("os_version")} refreshHostname={() => refresh("hostname")} /></div>
   <section class="summary panel" aria-labelledby="maintenance-title"><div class="summary-heading"><div class="section-label"><ListChecks size={14} /> ОБСЛУЖИВАНИЕ</div><h2 id="maintenance-title">Перед началом работы</h2></div>
     <div class="summary-items">
       <a href="#/network"><CircleHelp size={16}/><span><b>Интернет и DNS</b><small>Не проверено. Профиль не выбран.</small></span><ArrowUpRight size={14}/></a>

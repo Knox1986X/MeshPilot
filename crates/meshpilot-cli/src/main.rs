@@ -1,6 +1,6 @@
 use meshpilot_core::{
-    CpuObservation, Finding, KernelObservation, NetworkIoObservation, OsVersionObservation,
-    RamObservation, RootFsObservation, UptimeObservation,
+    CpuObservation, Finding, HostnameObservation, KernelObservation, NetworkIoObservation,
+    OsVersionObservation, RamObservation, RootFsObservation, UptimeObservation,
 };
 use std::{env, fmt::Write, process::ExitCode};
 
@@ -115,6 +115,13 @@ fn os_version_line(sample: Option<&OsVersionObservation>) -> String {
     }
 }
 
+fn hostname_line(sample: Option<&HostnameObservation>) -> String {
+    match sample {
+        Some(s) => format!("Хост: {} · {} · {}", s.name, s.source, s.observed_at_utc),
+        None => "Хост: нет данных".into(),
+    }
+}
+
 fn main() -> ExitCode {
     let mut command = None;
     let mut json = false;
@@ -147,12 +154,13 @@ fn main() -> ExitCode {
                 );
             } else {
                 println!(
-                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
+                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
                     match (r.cachyos, r.os_id.as_deref()) {
                         (Some(true), Some("arch")) => "CachyOS (ID=arch)",
                         (None, Some("arch")) => "arch (CachyOS не подтверждена)",
                         (_, id) => id.unwrap_or("не удалось определить"),
                     },
+                    hostname_line(r.hostname.as_ref()),
                     os_version_line(r.os_version.as_ref()),
                     kernel_line(r.kernel.as_ref()),
                     uptime_line(r.uptime.as_ref()),
@@ -276,6 +284,20 @@ mod tests {
             "Версия системы: 12 (bookworm) · /etc/os-release · 2026-11-20T10:00:00.123Z"
         );
         assert_eq!(os_version_line(None), "Версия системы: нет данных");
+    }
+
+    #[test]
+    fn hostname_text_keeps_name_source_and_time() {
+        let s = HostnameObservation {
+            name: "cachyos".into(),
+            source: "/proc/sys/kernel/hostname",
+            observed_at_utc: "2026-11-20T10:00:00.123Z".into(),
+        };
+        assert_eq!(
+            hostname_line(Some(&s)),
+            "Хост: cachyos · /proc/sys/kernel/hostname · 2026-11-20T10:00:00.123Z"
+        );
+        assert_eq!(hostname_line(None), "Хост: нет данных");
     }
 
     #[test]

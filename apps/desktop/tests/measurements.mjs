@@ -14,10 +14,12 @@ export async function testSnapshotCards(browser, origin) {
     const uptime = { uptime_seconds: 11931, source: "/proc/uptime", observed_at_utc };
     const kernel = { version: "6.12.9-cachyos1-1", source: "/proc/version", observed_at_utc };
     const osVersion = { version: "12 (bookworm)", source: "/etc/os-release", observed_at_utc };
+    const hostname = { name: "e2b.local", source: "/proc/sys/kernel/hostname", observed_at_utc };
     const replies = {
       uptime: [uptime, { ...uptime, uptime_seconds: 0 }, null, { ...uptime, source: "/proc/stat" }, { ...uptime, observed_at_utc: "" }, "error"],
       kernel: [kernel, null, { ...kernel, source: "/proc/stat" }, "error"],
       os_version: [osVersion, null, { ...osVersion, source: "/proc/version" }, "error"],
+      hostname: [hostname, null, { ...hostname, source: "/etc/os-release" }, "error"],
       net: [{ source: "/proc/net/dev", observed_at_utc, interval_ms: 500, interfaces: [] }],
       disk: [disk, { ...disk, used_bytes: 0, available_bytes: 0 }, null,
         { ...disk, available_bytes: disk.total_bytes - disk.used_bytes + 1 },
@@ -27,9 +29,9 @@ export async function testSnapshotCards(browser, origin) {
       cpu: [cpu, { ...cpu, busy_ticks: 0, usage_percent: 0 }, null, { ...cpu, usage_percent: 101 }, { ...cpu, interval_ms: 0 }, { ...cpu, total_ticks: 0 }, { ...cpu, usage_percent: 50 }, { ...cpu, source: "/wrong" }],
     };
     window.isTauri = true;
-    window.calls = { ram: [], cpu: [], disk: [], net: [], uptime: [], kernel: [], os_version: [] };
+    window.calls = { ram: [], cpu: [], disk: [], net: [], uptime: [], kernel: [], os_version: [], hostname: [] };
     window.__TAURI_INTERNALS__ = { invoke: async (cmd, args) => {
-      const key = { read_ram: "ram", read_cpu: "cpu", read_root_fs: "disk", read_network_io: "net", read_uptime: "uptime", read_kernel: "kernel", read_os_version: "os_version" }[cmd];
+      const key = { read_ram: "ram", read_cpu: "cpu", read_root_fs: "disk", read_network_io: "net", read_uptime: "uptime", read_kernel: "kernel", read_os_version: "os_version", read_hostname: "hostname" }[cmd];
       if (!key) throw new Error("Неизвестная команда");
       const n = window.calls[key].push([cmd, args]);
       if (key === "cpu" && n === 1) await new Promise(resolve => { window.finishCpu = resolve; });
@@ -158,10 +160,24 @@ export async function testSnapshotCards(browser, origin) {
       assert.match(await page.locator(".pill", { hasText: "OS: " }).innerText(), /OS: —/);
     }
     assert.deepEqual(await page.evaluate(() => window.calls.os_version), Array.from({ length: 4 }, () => ["read_os_version", {}]));
-    // Отказы одной строки не стирали соседние: аптайм и ядро тоже отказали, ОС осталась своей.
+    assert.equal(await page.locator("#hostname-value").innerText(), "e2b.local");
+    assert.equal(await page.locator("#hostname-row time").getAttribute("datetime"), "2026-11-20T12:34:56.789Z");
+    assert.match((await page.locator("#hostname-meta").innerText()).replace(/\s+/g, " "), /^\/proc\/sys\/kernel\/hostname 2026-11-20 12:34:56 UTC$/);
+    const hostButton = page.getByRole("button", { name: "Обновить имя узла" });
+    for (let n = 2; n <= 4; n++) {
+      await hostButton.click();
+      await page.waitForFunction(n => window.calls.hostname.length === n, n);
+      assert.equal(await page.locator("#hostname-value").innerText(), "—");
+      assert.equal(await page.locator("#hostname-row time").count(), 0);
+      const why = n === 2 ? "Нет достоверного замера" : n === 3 ? "Некорректный ответ" : "Канал недоступен";
+      assert.equal(await page.locator("#hostname-meta").innerText(), `${why}: /proc/sys/kernel/hostname`);
+    }
+    assert.deepEqual(await page.evaluate(() => window.calls.hostname), Array.from({ length: 4 }, () => ["read_hostname", {}]));
+    // Отказы одной строки не стирали соседние: все четыре строки панели отказали независимо.
     assert.equal(await page.locator("#uptime-value").innerText(), "—");
     assert.equal(await page.locator("#kernel-value").innerText(), "—");
+    assert.equal(await page.locator("#os-version-value").innerText(), "—");
     assert.deepEqual(errors, []);
-    console.log("CPU/RAM/ФС /, аптайм, ядро и версия системы: источник, UTC, единицы, интервал CPU, ноль, отказ и независимое обновление: ОК");
+    console.log("CPU/RAM/ФС /, аптайм, ядро, версия системы и имя узла: источник, UTC, единицы, интервал CPU, ноль, отказ и независимое обновление: ОК");
   } finally { await page.close(); }
 }

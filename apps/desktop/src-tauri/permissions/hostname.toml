@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-read-hostname"
+description = "Прочитать имя узла из /proc/sys/kernel/hostname без параметров"
+commands.allow = ["read_hostname"]

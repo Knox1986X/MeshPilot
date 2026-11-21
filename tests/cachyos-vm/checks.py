@@ -216,6 +216,28 @@ def verify_os_version_card(label, started, low, high):
 OS_VERSION_EMPTY = "Версия системы — Нет достоверного замера: /etc/os-release"
 
 
+def verify_cli_hostname(observation, started, low, high):
+    # Имя узла могут сменить в работе: значение обязано попасть в границы наблюдений.
+    check(isinstance(observation, dict) and observation.get("source") == "/proc/sys/kernel/hostname", "CLI_HOSTNAME_SOURCE")
+    name = observation.get("name")
+    check(isinstance(name, str) and 1 <= len(name) <= 64
+          and all(0x20 <= ord(c) <= 0x7E for c in name)
+          and not name.startswith(" ") and not name.endswith(" ")
+          and low <= name <= high, "CLI_HOSTNAME")
+    verify_stamp(observation.get("observed_at_utc"), started, "CLI_HOSTNAME_TIME")
+
+
+def verify_hostname_card(label, started, low, high):
+    # Доступное имя строки «Hostname» из видимых dt, значения, источника и time.
+    label = label.replace("\xa0", "").replace("\u202f", "")
+    match = re.fullmatch(r"Hostname\s+(.+?)\s+/proc/sys/kernel/hostname\s+"
+                         r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC", label)
+    check(match, "GUI_HOSTNAME_LABEL")
+    check(low <= match.group(1) <= high, "GUI_HOSTNAME")
+    stamp = datetime.fromisoformat(match.group(2)).replace(tzinfo=timezone.utc).timestamp()
+    check(started <= stamp <= time.time(), "GUI_HOSTNAME_TIME")
+
+
 def verify_root_fs_card(label, started, low, high):
     quantity = r"([0-9]+(?:,[0-9]{1,2})?) (Б|КиБ|МиБ|ГиБ|ТиБ|ПиБ)"
     label = label.replace("\xa0", "").replace("\u202f", "")

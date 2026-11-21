@@ -99,6 +99,19 @@ fn read_os_version() -> Option<meshpilot_core::OsVersionObservation> {
     }
 }
 
+/// Имя узла — одно чтение /proc/sys/kernel/hostname, как и RAM/аптайм/ядро.
+#[tauri::command]
+fn read_hostname() -> Option<meshpilot_core::HostnameObservation> {
+    #[cfg(target_os = "linux")]
+    {
+        meshpilot_linux::hostname_snapshot()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
 #[tauri::command]
 async fn read_network_io() -> Option<meshpilot_core::NetworkIoObservation> {
     #[cfg(target_os = "linux")]
@@ -127,7 +140,8 @@ fn main() -> ExitCode {
             read_network_io,
             read_uptime,
             read_kernel,
-            read_os_version
+            read_os_version,
+            read_hostname
         ])
         .run(tauri::generate_context!())
     {

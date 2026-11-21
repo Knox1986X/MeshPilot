@@ -1,16 +1,17 @@
 <script lang="ts">
   import { RefreshCw, Server } from "@lucide/svelte";
   import { isTauri } from "@tauri-apps/api/core";
-  import { formatUptime, formatUtc, readHint, type Reading, type UptimeObservation, type KernelObservation, type OsVersionObservation } from "./measurements";
-  let { uptime, kernel, osVersion, pendingUptime, pendingKernel, pendingOsVersion, refreshUptime, refreshKernel, refreshOsVersion }: {
-    uptime: Reading<UptimeObservation>; kernel: Reading<KernelObservation>; osVersion: Reading<OsVersionObservation>;
-    pendingUptime: boolean; pendingKernel: boolean; pendingOsVersion: boolean;
-    refreshUptime: () => void; refreshKernel: () => void; refreshOsVersion: () => void;
+  import { formatUptime, formatUtc, readHint, type Reading, type UptimeObservation, type KernelObservation, type OsVersionObservation, type HostnameObservation } from "./measurements";
+  let { uptime, kernel, osVersion, hostname, pendingUptime, pendingKernel, pendingOsVersion, pendingHostname, refreshUptime, refreshKernel, refreshOsVersion, refreshHostname }: {
+    uptime: Reading<UptimeObservation>; kernel: Reading<KernelObservation>; osVersion: Reading<OsVersionObservation>; hostname: Reading<HostnameObservation>;
+    pendingUptime: boolean; pendingKernel: boolean; pendingOsVersion: boolean; pendingHostname: boolean;
+    refreshUptime: () => void; refreshKernel: () => void; refreshOsVersion: () => void; refreshHostname: () => void;
   } = $props();
   // Каждая измеренная строка — свой источник и свой запрос; обновления независимы.
   let uptimeHint = $derived(readHint(uptime.issue, pendingUptime, "/proc/uptime"));
   let kernelHint = $derived(readHint(kernel.issue, pendingKernel, "/proc/version"));
   let osVersionHint = $derived(readHint(osVersion.issue, pendingOsVersion, "/etc/os-release"));
+  let hostnameHint = $derived(readHint(hostname.issue, pendingHostname, "/proc/sys/kernel/hostname"));
 </script>
 <section class="panel info-panel" aria-labelledby="info-title">
   <div class="panel-heading"><div><div class="section-label"><Server size={13} /> ОКРУЖЕНИЕ</div><h2 id="info-title">Среда CachyOS</h2></div>
@@ -18,7 +19,14 @@
   </div>
   <p class="panel-sub">Параметры узла и бэкапа</p>
   <dl class="info-list">
-    <div><dt>Hostname</dt><dd>—</dd></div>
+    <div id="hostname-row" aria-busy={pendingHostname} aria-labelledby="hostname-label hostname-value hostname-meta">
+      <dt id="hostname-label">Hostname</dt>
+      <dd>
+        <span id="hostname-value">{#if hostname.value}{hostname.value.name}{:else}—{/if}</span>
+        <span id="hostname-meta" class="info-meta">{#if hostname.value}<code>{hostname.value.source}</code> <time datetime={hostname.value.observed_at_utc} title={hostname.value.observed_at_utc}>{formatUtc(hostname.value.observed_at_utc)}</time>{:else}{hostnameHint}{/if}</span>
+      </dd>
+      {#if isTauri()}<button class="icon-btn row-refresh" onclick={refreshHostname} disabled={pendingHostname} aria-label="Обновить имя узла" title="Обновить имя узла"><RefreshCw size={14} /></button>{/if}
+    </div>
     <div id="os-version-row" aria-busy={pendingOsVersion} aria-labelledby="os-version-label os-version-value os-version-meta">
       <dt id="os-version-label">Версия системы</dt>
       <dd>

@@ -102,6 +102,26 @@ def os_version():
         return None
 
 
+def parse_hostname(raw):
+    """Имя узла из /proc/sys/kernel/hostname; правила совпадают с адаптером."""
+    if len(raw) > 65536:
+        raise ValueError("hostname size")
+    name = raw[:-1] if raw.endswith(b"\n") else raw
+    if b"\n" in name:
+        raise ValueError("hostname table")
+    if not 1 <= len(name) <= 64:
+        raise ValueError("hostname length")
+    if any(b < 0x20 or b > 0x7E for b in name):
+        raise ValueError("hostname charset")
+    if name.startswith(b" ") or name.endswith(b" "):
+        raise ValueError("hostname pad")
+    return name.decode("ascii")
+
+
+def hostname_value():
+    return parse_hostname(Path("/proc/sys/kernel/hostname").read_bytes())
+
+
 def witnessed(args):
     low = root_bytes()
     high = low.copy()
@@ -110,9 +130,11 @@ def witnessed(args):
     kr = kernel_version()
     kr_lo, kr_hi = kr, kr
     ov = os_version()
+    hn = hostname_value()
+    hn_lo, hn_hi = hn, hn
 
     def observe():
-        nonlocal up_lo, up_hi, kr_lo, kr_hi
+        nonlocal up_lo, up_hi, kr_lo, kr_hi, hn_lo, hn_hi
         for key, n in root_bytes().items():
             low[key], high[key] = min(low[key], n), max(high[key], n)
         u = uptime_seconds()
@@ -122,6 +144,9 @@ def witnessed(args):
         # Версия за загрузку неизменна: смена значения — сбой стенда.
         if ov is not None and os_version() != ov:
             raise ValueError("os version changed")
+        # Имя узла могут сменить в работе: сохраняем границы наблюдений.
+        h = hostname_value()
+        hn_lo, hn_hi = min(hn_lo, h), max(hn_hi, h)
 
     with subprocess.Popen(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
         while True:
@@ -133,6 +158,7 @@ def witnessed(args):
         observe()
         return {"low": low, "high": high, "up_lo": up_lo, "up_hi": up_hi,
                 "kr_lo": kr_lo, "kr_hi": kr_hi, "ov": ov,
+                "hn_lo": hn_lo, "hn_hi": hn_hi,
                 "returncode": p.returncode, "out": out, "err": err}
 
 

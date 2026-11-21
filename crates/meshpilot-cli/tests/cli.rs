@@ -43,6 +43,17 @@ fn status_never_maps_unknown_to_zero_or_offline() {
             .all(|b| (0x20..=0x7E).contains(&b) && b != b'"' && b != b'\'')
     );
     assert!(o["observed_at_utc"].as_str().unwrap().ends_with("Z"));
+    // Имя узла: на Linux — валидное чтение /proc/sys/kernel/hostname, иначе — честный null.
+    let h = &v["hostname"];
+    if h.is_null() {
+        return;
+    }
+    assert_eq!(h["source"], "/proc/sys/kernel/hostname");
+    let name = h["name"].as_str().expect("name is a string");
+    assert!(!name.is_empty() && name.len() <= 64);
+    assert!(!name.starts_with(' ') && !name.ends_with(' '));
+    assert!(name.bytes().all(|b| (0x20..=0x7E).contains(&b)));
+    assert!(h["observed_at_utc"].as_str().unwrap().ends_with("Z"));
 }
 
 #[test]

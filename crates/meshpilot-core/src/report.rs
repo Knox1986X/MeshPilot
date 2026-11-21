@@ -81,6 +81,14 @@ pub struct OsVersionObservation {
     pub observed_at_utc: String,
 }
 
+/// Имя узла из системного вызова `gethostname()`, одно чтение, файлы и программы не трогаем.
+#[derive(Debug, Serialize)]
+pub struct HostnameObservation {
+    pub name: String,
+    pub source: &'static str,
+    pub observed_at_utc: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct StatusReport {
     pub schema_version: u8,
@@ -96,6 +104,7 @@ pub struct StatusReport {
     pub uptime: Option<UptimeObservation>,
     pub kernel: Option<KernelObservation>,
     pub os_version: Option<OsVersionObservation>,
+    pub hostname: Option<HostnameObservation>,
     pub online: Option<bool>,
     pub dns: Option<String>,
     pub updatable_apps: Option<u32>,
@@ -117,6 +126,7 @@ impl StatusReport {
             uptime: None,
             kernel: None,
             os_version: None,
+            hostname: None,
             online: None,
             dns: None,
             updatable_apps: None,
@@ -170,6 +180,7 @@ mod tests {
         assert_eq!(json.get("uptime"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("kernel"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("os_version"), Some(&serde_json::Value::Null));
+        assert_eq!(json.get("hostname"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("cpu"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("root_fs"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("ram"), Some(&serde_json::Value::Null));

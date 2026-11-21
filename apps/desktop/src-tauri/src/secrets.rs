@@ -11,6 +11,12 @@ pub struct SecretsState {
     session: Mutex<HashMap<String, String>>,
 }
 
+impl Default for SecretsState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SecretsState {
     pub fn new() -> Self {
         Self { session: Mutex::new(HashMap::new()) }

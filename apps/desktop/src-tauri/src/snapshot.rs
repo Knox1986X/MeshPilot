@@ -196,6 +196,12 @@ pub struct MetricsState {
     previous_net: Mutex<Option<(u64, u64, Instant)>>,
 }
 
+impl Default for MetricsState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MetricsState {
     pub fn new() -> Self {
         Self {

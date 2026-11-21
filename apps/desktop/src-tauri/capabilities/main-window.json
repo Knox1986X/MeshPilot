@@ -1,0 +1,6 @@
+{
+  "identifier": "main-window",
+  "description": "Минимальные разрешения MeshPilot: собственные команды IPC, ничего лишнего (нет fs/shell/process API)",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

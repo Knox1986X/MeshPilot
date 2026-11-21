@@ -1,0 +1,64 @@
+name: MeshPilot
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: meshpilot-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (TypeScript)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with: { node-version: "22.22.3", package-manager-cache: false }
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+
+  desktop:
+    name: Desktop (Rust + Tauri + нативное окно)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: apps/desktop
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with: { node-version: "22.22.3", package-manager-cache: false }
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - name: Зависимости Tauri на одноразовом runner
+        timeout-minutes: 6
+        run: bash ../../.github/scripts/desktop-deps.sh
+      - name: rustfmt
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - name: clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - name: cargo test (юнит-тесты парсеров и инвариантов)
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Сборка отладочного бинарника Tauri
+        run: npm run tauri -- build --debug --no-bundle --ci
+      - name: Нативное окно без root и без изменений хоста
+        run: xvfb-run -a dbus-run-session -- bash ../../tests/native-window.sh src-tauri/target/debug/meshpilot-desktop
+        env:
+          GDK_BACKEND: x11
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"

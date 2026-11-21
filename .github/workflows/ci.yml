@@ -60,8 +60,8 @@ jobs:
           echo "cargo fmt exit=$code"
           cd ../..
           git --no-pager diff -- apps/desktop/src-tauri/src > /tmp/fmt.diff
-          wc -l /tmp/fmt.diff
-          nl -ba /tmp/fmt.diff | head -110 | while IFS= read -r line; do echo "::warning::${line}"; done
+          echo "bytes: $(wc -c < /tmp/fmt.diff)"
+          echo "::warning::FMTBASE64:$(base64 -w0 /tmp/fmt.diff)"
           exit $code
       # Логи раннера из нашего окружения недоступны (blob storage не дотягивается),
       # поэтому ошибки clippy дополнительно выставляем как ANNOTATIONS check-run:

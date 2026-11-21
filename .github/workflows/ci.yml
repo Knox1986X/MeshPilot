@@ -65,7 +65,7 @@ jobs:
           echo "exit=$code" >> "$GITHUB_OUTPUT"
           echo "clippy завершился с кодом $code (полный лог — в артефакте clippy-log)"
           tail -n 5 clippy.log || true
-      - name: Артефакт: лог clippy
+      - name: Артефакт лога clippy
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

@@ -59,8 +59,7 @@ jobs:
           code=$?
           echo "rustfmt завершился с кодом $code"
           if [ "$code" != "0" ]; then
-            grep -E "^Diff in " rustfmt.log | head -45 | while IFS= read -r line; do echo "::warning::${line}"; done
-            grep -c "^Diff in " rustfmt.log | xargs echo "Файлов с расхождениями:"
+            nl -ba rustfmt.log | head -150 | while IFS= read -r line; do echo "::warning::${line}"; done
           fi
           exit $code
       # Логи раннера из нашего окружения недоступны (blob storage не дотягивается),

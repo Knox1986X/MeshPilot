@@ -44,6 +44,7 @@ try {
     assert.deepEqual(await page.locator(".disk-legend dd").allTextContents(), ["—", "—", "—", "—"]);
     assert.equal(await page.locator("#uptime-value").innerText(), "—");
     assert.equal(await page.locator("#kernel-value").innerText(), "—");
+    assert.equal(await page.locator("#os-version-value").innerText(), "—");
     assert.equal(await page.locator(".info-panel time").count(), 0);
     assert.doesNotMatch(await page.locator(".info-panel").innerText(), /\d|NaN/);
     assert.match(await page.locator(".pill.blue").innerText(), /Kernel: —/);

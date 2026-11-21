@@ -57,6 +57,47 @@ def kernel_version():
     return parse_kernel(Path("/proc/version").read_bytes())
 
 
+def parse_os_version(raw):
+    """Поле VERSION= os-release: ровно одна строка, дословное значение.
+
+    Правила совпадают с адаптером приложения: необязательная пара кавычек,
+    печатные ASCII без кавычек и краевых пробелов, длина 1–64.
+    """
+    if len(raw) > 65536:
+        raise ValueError("os version size")
+    text = raw.decode("utf-8")
+    values = []
+    for line in text.split("\n"):
+        if line.endswith("\r"):
+            line = line[:-1]
+        key, sep, value = line.partition("=")
+        if sep and key == "VERSION":
+            values.append(value)
+    if len(values) != 1:
+        raise ValueError("os version field")
+    raw_value = values[0]
+    quote = raw_value[0] if raw_value[:1] in {'"', "'"} else None
+    if quote:
+        if len(raw_value) < 2 or not raw_value.endswith(quote):
+            raise ValueError("os version quotes")
+        value = raw_value[1:-1]
+    else:
+        value = raw_value
+    if not 1 <= len(value) <= 64:
+        raise ValueError("os version length")
+    if any(b < 0x20 or b > 0x7E for b in value.encode("ascii")):
+        raise ValueError("os version charset")
+    if '"' in value or "'" in value:
+        raise ValueError("os version quote")
+    if value.startswith(" ") or value.endswith(" "):
+        raise ValueError("os version pad")
+    return value
+
+
+def os_version():
+    return parse_os_version(Path("/etc/os-release").read_bytes())
+
+
 def witnessed(args):
     low = root_bytes()
     high = low.copy()
@@ -64,15 +105,19 @@ def witnessed(args):
     up_lo, up_hi = up, up
     kr = kernel_version()
     kr_lo, kr_hi = kr, kr
+    ov = os_version()
+    ov_lo, ov_hi = ov, ov
 
     def observe():
-        nonlocal up_lo, up_hi, kr_lo, kr_hi
+        nonlocal up_lo, up_hi, kr_lo, kr_hi, ov_lo, ov_hi
         for key, n in root_bytes().items():
             low[key], high[key] = min(low[key], n), max(high[key], n)
         u = uptime_seconds()
         up_lo, up_hi = min(up_lo, u), max(up_hi, u)
         k = kernel_version()
         kr_lo, kr_hi = min(kr_lo, k), max(kr_hi, k)
+        o = os_version()
+        ov_lo, ov_hi = min(ov_lo, o), max(ov_hi, o)
 
     with subprocess.Popen(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
         while True:
@@ -83,7 +128,7 @@ def witnessed(args):
                 observe()
         observe()
         return {"low": low, "high": high, "up_lo": up_lo, "up_hi": up_hi,
-                "kr_lo": kr_lo, "kr_hi": kr_hi,
+                "kr_lo": kr_lo, "kr_hi": kr_hi, "ov_lo": ov_lo, "ov_hi": ov_hi,
                 "returncode": p.returncode, "out": out, "err": err}
 
 

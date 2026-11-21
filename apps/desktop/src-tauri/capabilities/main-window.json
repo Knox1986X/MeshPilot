@@ -1,6 +1,6 @@
 {
   "identifier": "main-window",
-  "description": "Управление своим окном и фиксированные измерения RAM, CPU, корневой ФС, RX/TX, времени работы и версии ядра, без общего доступа к файлам и процессам",
+  "description": "Управление своим окном и фиксированные измерения RAM, CPU, корневой ФС, RX/TX, времени работы, версии ядра и версии системы, без общего доступа к файлам и процессам",
   "windows": ["main"],
-  "permissions": ["allow-read-ram", "allow-read-cpu", "allow-read-root-fs", "allow-read-network-io", "allow-read-uptime", "allow-read-kernel", "core:window:allow-start-dragging", "core:window:allow-minimize", "core:window:allow-toggle-maximize", "core:window:allow-close"]
+  "permissions": ["allow-read-ram", "allow-read-cpu", "allow-read-root-fs", "allow-read-network-io", "allow-read-uptime", "allow-read-kernel", "allow-read-os-version", "core:window:allow-start-dragging", "core:window:allow-minimize", "core:window:allow-toggle-maximize", "core:window:allow-close"]
 }

@@ -1,8 +1,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
-export type Metric = "cpu" | "ram" | "disk" | "net" | "uptime" | "kernel";
+export type Metric = "cpu" | "ram" | "disk" | "net" | "uptime" | "kernel" | "os_version";
 
-/** Те же объекты, что status --json → cpu, ram, root_fs, network_io, uptime и kernel. Браузер не является источником метрик. */
+/** Те же объекты, что status --json → cpu, ram, root_fs, network_io, uptime, kernel и os_version. Браузер не является источником метрик. */
 export interface CpuObservation {
   usage_percent: number;
   busy_ticks: number;
@@ -49,6 +49,12 @@ export interface UptimeObservation {
 export interface KernelObservation {
   version: string;
   source: "/proc/version";
+  observed_at_utc: string;
+}
+
+export interface OsVersionObservation {
+  version: string;
+  source: "/etc/os-release";
   observed_at_utc: string;
 }
 
@@ -114,9 +120,18 @@ function validKernel(value: unknown): value is KernelObservation {
     && typeof k.version === "string" && k.version.length >= 1 && k.version.length <= 64
     && /^[!-~]{1,64}$/.test(k.version);
 }
+// Версия системы: печатные ASCII, допустимы пробелы/скобки внутри, но без кавычек и краевых пробелов.
+function validOsVersion(value: unknown): value is OsVersionObservation {
+  if (!value || typeof value !== "object") return false;
+  const o = value as Partial<OsVersionObservation>;
+  return o.source === "/etc/os-release" && utcStamp(o.observed_at_utc)
+    && typeof o.version === "string" && o.version.length >= 1 && o.version.length <= 64
+    && /^[ -~]{1,64}$/.test(o.version) && !/["']/.test(o.version)
+    && !o.version.startsWith(" ") && !o.version.endsWith(" ");
+}
 export type ReadIssue = "browser" | "unavailable" | "invalid" | "ipc";
 export type Reading<T> = { value: T; issue: null } | { value: null; issue: ReadIssue };
-async function read<T>(cmd: "read_ram" | "read_cpu" | "read_root_fs" | "read_network_io" | "read_uptime" | "read_kernel", valid: (value: unknown) => value is T): Promise<Reading<T>> {
+async function read<T>(cmd: "read_ram" | "read_cpu" | "read_root_fs" | "read_network_io" | "read_uptime" | "read_kernel" | "read_os_version", valid: (value: unknown) => value is T): Promise<Reading<T>> {
   if (!isTauri()) return { value: null, issue: "browser" };
   try {
     const result = await invoke<unknown>(cmd);
@@ -130,6 +145,7 @@ export const readNetworkIo = () => read("read_network_io", validNetworkIo);
 export const readRam = () => read("read_ram", validRam);
 export const readUptime = () => read("read_uptime", validUptime);
 export const readKernel = () => read("read_kernel", validKernel);
+export const readOsVersion = () => read("read_os_version", validOsVersion);
 
 const issues = { browser: "В браузере источник недоступен", ipc: "Канал недоступен", invalid: "Некорректный ответ", unavailable: "Нет достоверного замера" };
 export function readHint(issue: ReadIssue | null, pending: boolean, source: string) {

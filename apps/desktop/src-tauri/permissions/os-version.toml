@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-read-os-version"
+description = "Прочитать версию системы из /etc/os-release без параметров"
+commands.allow = ["read_os_version"]

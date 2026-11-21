@@ -162,6 +162,56 @@ def verify_kernel_card(label, started, low, high):
     check(started <= stamp <= time.time(), "GUI_KERNEL_TIME")
 
 
+def proc_os_version():
+    # Независимое чтение поля VERSION из /etc/os-release, без shell и dlopen.
+    # Правила идентичны адаптеру приложения; возвращает развёрнутое значение.
+    raw = Path("/etc/os-release").read_bytes()
+    check(len(raw) <= 65536, "PROC_OS_VERSION")
+    values = []
+    for line in raw.decode("utf-8").split("\n"):
+        if line.endswith("\r"):
+            line = line[:-1]
+        key, sep, value = line.partition("=")
+        if sep and key == "VERSION":
+            values.append(value)
+    check(len(values) == 1, "PROC_OS_VERSION")
+    raw_value = values[0]
+    quote = raw_value[0] if raw_value[:1] in {'"', "'"} else None
+    if quote:
+        check(len(raw_value) >= 2 and raw_value.endswith(quote), "PROC_OS_VERSION")
+        value = raw_value[1:-1]
+    else:
+        value = raw_value
+    check(1 <= len(value) <= 64, "PROC_OS_VERSION")
+    check(all(0x20 <= ord(c) <= 0x7E for c in value) and '"' not in value and "'" not in value, "PROC_OS_VERSION")
+    check(not value.startswith(" ") and not value.endswith(" "), "PROC_OS_VERSION")
+    return value
+
+
+def verify_cli_os_version(observation, started, low, high):
+    # Версия системы постоянна за загрузку: границы наблюдений совпадают.
+    check(isinstance(observation, dict) and observation.get("source") == "/etc/os-release", "CLI_OS_VERSION_SOURCE")
+    version = observation.get("version")
+    check(isinstance(version, str) and 1 <= len(version) <= 64
+          and all(0x20 <= ord(c) <= 0x7E for c in version)
+          and '"' not in version and "'" not in version
+          and not version.startswith(" ") and not version.endswith(" ")
+          and low <= version <= high, "CLI_OS_VERSION")
+    verify_stamp(observation.get("observed_at_utc"), started, "CLI_OS_VERSION_TIME")
+
+
+def verify_os_version_card(label, started, low, high):
+    # Доступное имя строки «Версия системы» из видимых dt, значения, источника и time.
+    # Внутри значения допустимы пробелы и скобки, поэтому захват до источника — ленивый.
+    label = label.replace("\xa0", "").replace("\u202f", "")
+    match = re.fullmatch(r"Версия системы\s+(.+?)\s+/etc/os-release\s+"
+                         r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC", label)
+    check(match, "GUI_OS_VERSION_LABEL")
+    check(low <= match.group(1) <= high, "GUI_OS_VERSION")
+    stamp = datetime.fromisoformat(match.group(2)).replace(tzinfo=timezone.utc).timestamp()
+    check(started <= stamp <= time.time(), "GUI_OS_VERSION_TIME")
+
+
 def verify_root_fs_card(label, started, low, high):
     quantity = r"([0-9]+(?:,[0-9]{1,2})?) (Б|КиБ|МиБ|ГиБ|ТиБ|ПиБ)"
     label = label.replace("\xa0", "").replace("\u202f", "")

@@ -13,7 +13,8 @@ from pathlib import Path
 
 from checks import (Failure, check, proc_cpu_ticks, verify_cli_cpu, verify_cpu_card,
                     verify_cli_ram, verify_ram_card, verify_cli_root_fs, verify_root_fs_card,
-                    verify_cli_uptime, verify_uptime_card, verify_cli_kernel, verify_kernel_card)
+                    verify_cli_uptime, verify_uptime_card, verify_cli_kernel, verify_kernel_card,
+                    verify_cli_os_version, verify_os_version_card)
 
 from net_checks import net_ticks, verify_cli_net, verify_loopback_card, verify_shared_window
 
@@ -109,7 +110,8 @@ def run_checks(emit, home):
         record = json.loads(user(["/usr/bin/python3", "-I", "-B", MEDIA / "fs_witness.py", *args], timeout=timeout))
         result = subprocess.CompletedProcess(args, record["returncode"], record["out"], record["err"])
         return (result, record["low"], record["high"],
-                record["up_lo"], record["up_hi"], record["kr_lo"], record["kr_hi"])
+                record["up_lo"], record["up_hi"], record["kr_lo"], record["kr_hi"],
+                record["ov_lo"], record["ov_hi"])
 
     # Только неизменившиеся данные реального образа. Не подменять os-release в тесте.
     raw_id = platform.freedesktop_os_release()["ID"]
@@ -117,7 +119,7 @@ def run_checks(emit, home):
     before = proc_cpu_ticks()
     mono = time.monotonic_ns()
     started = time.time_ns()
-    cli, fs_low, fs_high, up_lo, up_hi, kr_lo, kr_hi = observed([MEDIA / "meshpilot", "status", "--json"], timeout=12)
+    cli, fs_low, fs_high, up_lo, up_hi, kr_lo, kr_hi, ov_lo, ov_hi = observed([MEDIA / "meshpilot", "status", "--json"], timeout=12)
     cli.check_returncode()
     status = json.loads(cli.stdout)
     elapsed_ms = (time.monotonic_ns() - mono) // 1_000_000
@@ -131,6 +133,7 @@ def run_checks(emit, home):
     verify_cli_root_fs(status.get("root_fs"), started, fs_low, fs_high)
     verify_cli_uptime(status.get("uptime"), started, up_lo, up_hi)
     verify_cli_kernel(status.get("kernel"), started, kr_lo, kr_hi)
+    verify_cli_os_version(status.get("os_version"), started, ov_lo, ov_hi)
     doctor = json.loads(user([MEDIA / "meshpilot", "doctor", "--json", "--dry-run"]))
     checks = {c["id"]: c["finding"] for c in doctor["checks"]}
     check(doctor["read_only"] is True and checks["os"] == checks["pacman"] == "detected", "CLI_DOCTOR")
@@ -159,15 +162,15 @@ def run_checks(emit, home):
     mono = time.monotonic_ns()
     observer_error = None
     try:
-        window, wfs_low, wfs_high, wup_lo, wup_hi, wkr_lo, wkr_hi = observed([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "metric-name"], timeout=235)
+        window, wfs_low, wfs_high, wup_lo, wup_hi, wkr_lo, wkr_hi, wov_lo, wov_hi = observed([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "metric-name"], timeout=270)
         window.check_returncode()
         output = window.stdout
     except subprocess.CalledProcessError as err:
-        if err.returncode not in (42, 43, 44, 45, 46, 47):
+        if err.returncode not in (42, 43, 44, 45, 46, 47, 48):
             raise Failure("GUI_WINDOW") from err
         codes = {"GUI_METRIC_" + suffix for suffix in ("BUS", "APP", "TREE", "EMPTY", "IPC", "INVALID", "UNAVAILABLE", "PENDING", "PARTIAL")}
         reason = next((line for line in err.stderr.splitlines() if line in codes), "GUI_METRIC_OBSERVER")
-        observer_error = ({42: "RAM", 43: "CPU", 44: "FS", 45: "NET", 46: "UPTIME", 47: "KERNEL"}[err.returncode], reason)
+        observer_error = ({42: "RAM", 43: "CPU", 44: "FS", 45: "NET", 46: "UPTIME", 47: "KERNEL", 48: "OS_VERSION"}[err.returncode], reason)
         output = err.stdout
     except subprocess.SubprocessError as err:
         raise Failure("GUI_WINDOW") from err
@@ -192,6 +195,8 @@ def run_checks(emit, home):
     emit("UPTIME_CARD")
     verify_kernel_card(label("KERNEL", "Ядро"), started, wkr_lo, wkr_hi)
     emit("KERNEL_CARD")
+    verify_os_version_card(label("OS_VERSION", "Версия системы"), started, wov_lo, wov_hi)
+    emit("OS_VERSION_CARD")
 
 
 def main():

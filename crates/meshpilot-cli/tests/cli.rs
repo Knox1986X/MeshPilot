@@ -28,6 +28,21 @@ fn status_never_maps_unknown_to_zero_or_offline() {
     let ver = k["version"].as_str().expect("version is a string");
     assert!(!ver.is_empty() && ver.len() <= 64 && ver.bytes().all(|b| b.is_ascii_graphic()));
     assert!(k["observed_at_utc"].as_str().unwrap().ends_with("Z"));
+    // Версия системы: на Linux — валидный снимок, иначе (нет os-release) — честный null.
+    let o = &v["os_version"];
+    if o.is_null() {
+        return;
+    }
+    assert_eq!(o["source"], "/etc/os-release");
+    let version = o["version"].as_str().expect("version is a string");
+    assert!(!version.is_empty() && version.len() <= 64);
+    assert!(!version.starts_with(' ') && !version.ends_with(' '));
+    assert!(
+        version
+            .bytes()
+            .all(|b| (0x20..=0x7E).contains(&b) && b != b'"' && b != b'\'')
+    );
+    assert!(o["observed_at_utc"].as_str().unwrap().ends_with("Z"));
 }
 
 #[test]

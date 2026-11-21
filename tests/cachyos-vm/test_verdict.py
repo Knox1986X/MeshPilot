@@ -45,6 +45,10 @@ class Verdict(unittest.TestCase):
         with self.assertRaises(ValueError):
             verdict(self.trace(["GUEST", "CLI", "SESSION", "WINDOW", "RAM_CARD", "CPU_CARD", "ROOT_FS_CARD", "NET_IO_CARD", "UPTIME_CARD", "UNCHANGED", "PASS"]), "current", 0)
 
+    def test_six_cards_do_not_prove_os_version(self):
+        with self.assertRaises(ValueError):
+            verdict(self.trace(["GUEST", "CLI", "SESSION", "WINDOW", "RAM_CARD", "CPU_CARD", "ROOT_FS_CARD", "NET_IO_CARD", "UPTIME_CARD", "KERNEL_CARD", "UNCHANGED", "PASS"]), "current", 0)
+
     def test_replay_or_timeout_is_not_success(self):
         for nonce, rc in [("previous", 0), ("current", 124)]:
             with self.assertRaises(ValueError):

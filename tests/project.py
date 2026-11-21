@@ -36,8 +36,8 @@ class Project(unittest.TestCase):
         self.assertNotIn("remote", cap)
         self.assertEqual(cap["windows"], ["main"])
         self.assertEqual(set(cap["permissions"]), {"core:window:allow-" + op for op in
-                         ("minimize", "toggle-maximize", "close", "start-dragging")} | {"allow-read-ram", "allow-read-cpu", "allow-read-root-fs", "allow-read-network-io", "allow-read-uptime", "allow-read-kernel"})
-        for metric in ("ram", "cpu", "root-fs", "network-io", "uptime", "kernel"):
+                         ("minimize", "toggle-maximize", "close", "start-dragging")} | {"allow-read-ram", "allow-read-cpu", "allow-read-root-fs", "allow-read-network-io", "allow-read-uptime", "allow-read-kernel", "allow-read-os-version"})
+        for metric in ("ram", "cpu", "root-fs", "network-io", "uptime", "kernel", "os-version"):
             permission, = tomllib.loads((DESKTOP / f"src-tauri/permissions/{metric}.toml").read_text())["permission"]
             self.assertEqual(permission["identifier"], f"allow-read-{metric}")
             self.assertEqual(permission["commands"], {"allow": ["read_" + metric.replace("-", "_")]})

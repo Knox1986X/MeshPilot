@@ -86,6 +86,19 @@ fn read_kernel() -> Option<meshpilot_core::KernelObservation> {
     }
 }
 
+/// Версия системы — одно быстрое чтение, как и RAM/аптайм/ядро, без рабочего потока.
+#[tauri::command]
+fn read_os_version() -> Option<meshpilot_core::OsVersionObservation> {
+    #[cfg(target_os = "linux")]
+    {
+        meshpilot_linux::os_version_snapshot()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
 #[tauri::command]
 async fn read_network_io() -> Option<meshpilot_core::NetworkIoObservation> {
     #[cfg(target_os = "linux")]
@@ -113,7 +126,8 @@ fn main() -> ExitCode {
             read_root_fs,
             read_network_io,
             read_uptime,
-            read_kernel
+            read_kernel,
+            read_os_version
         ])
         .run(tauri::generate_context!())
     {

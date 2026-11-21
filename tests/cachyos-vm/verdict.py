@@ -3,7 +3,7 @@ import re
 import sys
 from pathlib import Path
 
-EXPECTED = ["GUEST", "CLI", "SESSION", "WINDOW", "RAM_CARD", "CPU_CARD", "ROOT_FS_CARD", "NET_IO_CARD", "UPTIME_CARD", "KERNEL_CARD", "UNCHANGED", "PASS"]
+EXPECTED = ["GUEST", "CLI", "SESSION", "WINDOW", "RAM_CARD", "CPU_CARD", "ROOT_FS_CARD", "NET_IO_CARD", "UPTIME_CARD", "KERNEL_CARD", "OS_VERSION_CARD", "UNCHANGED", "PASS"]
 
 
 def verdict(lines, run_id, qemu_status):
@@ -26,4 +26,4 @@ if __name__ == "__main__":
     except (ValueError, OSError) as error:
         print(f"::error file=tests/cachyos-vm/guest.py,title=CachyOS VM::{error}")
         sys.exit(1)
-    print("::notice file=tests/cachyos-vm/guest.py,title=CachyOS VM::" + " → ".join(EXPECTED) + "; CLI и карточки RAM, CPU, ФС /, трафика lo, времени работы и ядра из видимого окна с PID MeshPilot")
+    print("::notice file=tests/cachyos-vm/guest.py,title=CachyOS VM::" + " → ".join(EXPECTED) + "; CLI и карточки RAM, CPU, ФС /, трафика lo, времени работы, ядра и версии системы из видимого окна с PID MeshPilot")

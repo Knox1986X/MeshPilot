@@ -1,6 +1,6 @@
 use meshpilot_core::{
-    CpuObservation, Finding, KernelObservation, NetworkIoObservation, RamObservation,
-    RootFsObservation, UptimeObservation,
+    CpuObservation, Finding, KernelObservation, NetworkIoObservation, OsVersionObservation,
+    RamObservation, RootFsObservation, UptimeObservation,
 };
 use std::{env, fmt::Write, process::ExitCode};
 
@@ -105,6 +105,16 @@ fn kernel_line(sample: Option<&KernelObservation>) -> String {
     }
 }
 
+fn os_version_line(sample: Option<&OsVersionObservation>) -> String {
+    match sample {
+        Some(s) => format!(
+            "Версия системы: {} · {} · {}",
+            s.version, s.source, s.observed_at_utc
+        ),
+        None => "Версия системы: нет данных".into(),
+    }
+}
+
 fn main() -> ExitCode {
     let mut command = None;
     let mut json = false;
@@ -137,12 +147,13 @@ fn main() -> ExitCode {
                 );
             } else {
                 println!(
-                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\n{}\n{}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
+                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
                     match (r.cachyos, r.os_id.as_deref()) {
                         (Some(true), Some("arch")) => "CachyOS (ID=arch)",
                         (None, Some("arch")) => "arch (CachyOS не подтверждена)",
                         (_, id) => id.unwrap_or("не удалось определить"),
                     },
+                    os_version_line(r.os_version.as_ref()),
                     kernel_line(r.kernel.as_ref()),
                     uptime_line(r.uptime.as_ref()),
                     cpu_line(r.cpu.as_ref()),
@@ -251,6 +262,20 @@ mod tests {
             "Ядро: 6.12.9-cachyos1-1 · /proc/version · 2026-11-20T10:00:00.123Z"
         );
         assert_eq!(kernel_line(None), "Ядро: нет данных");
+    }
+
+    #[test]
+    fn os_version_text_keeps_version_source_and_time() {
+        let s = OsVersionObservation {
+            version: "12 (bookworm)".into(),
+            source: "/etc/os-release",
+            observed_at_utc: "2026-11-20T10:00:00.123Z".into(),
+        };
+        assert_eq!(
+            os_version_line(Some(&s)),
+            "Версия системы: 12 (bookworm) · /etc/os-release · 2026-11-20T10:00:00.123Z"
+        );
+        assert_eq!(os_version_line(None), "Версия системы: нет данных");
     }
 
     #[test]

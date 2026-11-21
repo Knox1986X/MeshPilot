@@ -54,8 +54,28 @@ jobs:
       - name: rustfmt (информационно)
         continue-on-error: true
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-      - name: clippy
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      # Лог clippy сохраняем артефактом (раннерный бэкенд логов из sandbox недоступен),
+      # затем строгая проверка — финальный шаг обязан завершиться нулём.
+      - name: clippy (лог в артефакт)
+        id: clippy
+        run: |
+          set +e
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings > clippy.log 2>&1
+          code=$?
+          echo "exit=$code" >> "$GITHUB_OUTPUT"
+          echo "clippy завершился с кодом $code (полный лог — в артефакте clippy-log)"
+          tail -n 5 clippy.log || true
+      - name: Артефакт: лог clippy
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: clippy-log
+          path: apps/desktop/clippy.log
+          retention-days: 7
+      - name: clippy (строго)
+        run: |
+          tail -n 300 clippy.log
+          test "${{ steps.clippy.outputs.exit }}" = "0"
       - name: cargo test (юнит-тесты парсеров и инвариантов)
         run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Сборка отладочного бинарника Tauri

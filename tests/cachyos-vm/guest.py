@@ -1,5 +1,4 @@
 """Работает только на Live ISO в выделенной VM, запущенной run.sh. Не устанавливает пакеты."""
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -12,16 +11,10 @@ import tempfile
 import time
 from pathlib import Path
 
+from checks import (Failure, check, proc_cpu_ticks, verify_cli_cpu, verify_cpu_card,
+                    verify_cli_ram, verify_ram_card)
+
 MEDIA = Path("/run/meshpilot-smoke")
-
-
-class Failure(Exception):
-    """Короткий код без секретов для последовательного порта."""
-
-
-def check(condition, code):
-    if not condition:
-        raise Failure(code)
 
 
 def command(args, **kwargs):
@@ -95,40 +88,6 @@ def display_ready(user, env, account):
     return False
 
 
-def proc_total():
-    match = re.search(r"^MemTotal:\s*(\d+) kB$", Path("/proc/meminfo").read_text(), re.MULTILINE)
-    check(match, "PROC_TOTAL")
-    return int(match[1]) * 1024
-
-
-def verify_cli_ram(ram, started):
-    check(isinstance(ram, dict) and ram.get("source") == "/proc/meminfo", "CLI_RAM_SOURCE")
-    check(type(ram.get("total_bytes")) is int and ram["total_bytes"] == proc_total() and
-          type(ram.get("used_bytes")) is int and 0 <= ram["used_bytes"] <= ram["total_bytes"], "CLI_RAM_BYTES")
-    text = ram.get("observed_at_utc")
-    check(isinstance(text, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z", text), "CLI_RAM_TIME")
-    check(started // 1_000_000 <= int(datetime.fromisoformat(text).timestamp() * 1000 + 0.5)
-          <= time.time_ns() // 1_000_000, "CLI_RAM_TIME")
-
-
-def verify_ram_card(label, started):
-    # Доступное имя собрано aria-labelledby из видимых заголовка, чисел, источника и time.
-    # Не сравнивать занятое между двумя чтениями: запуск WebView расходует память.
-    label = label.replace("\xa0", "").replace("\u202f", "")  # разделитель групп ru-RU
-    quantity = r"([0-9]+(?:,[0-9]{1,2})?) (Б|КиБ|МиБ|ГиБ|ТиБ|ПиБ)"
-    match = re.fullmatch(r"Занято RAM\s+" + quantity + r"\s+из\s+" + quantity +
-                         r"\s+/proc/meminfo\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC", label)
-    check(match, "GUI_RAM_LABEL")
-    units = ["Б", "КиБ", "МиБ", "ГиБ", "ТиБ", "ПиБ"]
-    used, unit, total, total_unit, stamp = match.groups()
-    total_scale = 1024 ** units.index(total_unit)
-    check(abs(float(total.replace(",", ".")) - proc_total() / total_scale) <= 0.005001, "GUI_RAM_TOTAL")
-    scale = 1024 ** units.index(unit)
-    check(0 <= float(used.replace(",", ".")) <= proc_total() / scale + 0.005001, "GUI_RAM_USED")
-    seconds = datetime.fromisoformat(stamp).replace(tzinfo=timezone.utc).timestamp()
-    check(started <= seconds <= time.time(), "GUI_RAM_TIME")
-
-
 def run_checks(emit, home):
     account = pwd.getpwnam("liveuser")
     check(account.pw_uid > 0, "LIVE_UID")
@@ -144,8 +103,13 @@ def run_checks(emit, home):
 
     # Только неизменившиеся данные реального образа. Не подменять os-release в тесте.
     raw_id = platform.freedesktop_os_release()["ID"]
+    before = proc_cpu_ticks()
+    mono = time.monotonic_ns()
     started = time.time_ns()
     status = json.loads(user([MEDIA / "meshpilot", "status", "--json"]))
+    elapsed_ms = (time.monotonic_ns() - mono) // 1_000_000
+    after = proc_cpu_ticks()
+    verify_cli_cpu(status.get("cpu"), started, elapsed_ms, before, after)
     check(status["read_only"] is True and status["os_id"] == raw_id and status["cachyos"] is True, "CLI_PLATFORM")
     check(all(status[k] is None for k in ("online", "dns", "updatable_apps", "security_fixes", "last_success_utc")), "CLI_OBSERVATIONS")
     verify_cli_ram(status.get("ram"), started)
@@ -173,20 +137,32 @@ def run_checks(emit, home):
     check(session, "NO_GRAPHICAL_SESSION")
     env.update(GDK_BACKEND="x11", WEBKIT_DISABLE_DMABUF_RENDERER="1", LIBGL_ALWAYS_SOFTWARE="1")
     started = int(time.time())
+    mono = time.monotonic_ns()
+    observer_error = None
     try:
-        output = user([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "ram-name"], timeout=80)
+        output = user([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "metric-name"], timeout=110)
     except subprocess.CalledProcessError as err:
-        if err.returncode == 42:
-            emit("WINDOW")
-            codes = {"GUI_RAM_BUS", "GUI_RAM_APP", "GUI_RAM_TREE", "GUI_RAM_EMPTY"}
-            reason = next((line for line in err.stderr.splitlines() if line in codes), "GUI_RAM_OBSERVER")
-            raise Failure(reason) from err
-        raise Failure("GUI_WINDOW") from err
+        if err.returncode not in (42, 43):
+            raise Failure("GUI_WINDOW") from err
+        codes = {"GUI_METRIC_BUS", "GUI_METRIC_APP", "GUI_METRIC_TREE", "GUI_METRIC_EMPTY"}
+        reason = next((line for line in err.stderr.splitlines() if line in codes), "GUI_METRIC_OBSERVER")
+        observer_error = ("RAM" if err.returncode == 42 else "CPU", reason)
+        output = err.stdout
     except subprocess.SubprocessError as err:
         raise Failure("GUI_WINDOW") from err
     emit("WINDOW")
-    verify_ram_card(output.strip().splitlines()[-1], started)
+
+    def label(metric, heading):
+        if observer_error and observer_error[0] == metric:
+            raise Failure(observer_error[1].replace("METRIC", metric))
+        lines = [line for line in output.splitlines() if line.startswith(heading)]
+        check(len(lines) == 1, f"GUI_{metric}_LABEL")
+        return lines[0]
+
+    verify_ram_card(label("RAM", "Занято RAM"), started)
     emit("RAM_CARD")
+    verify_cpu_card(label("CPU", "Загрузка CPU"), started, (time.monotonic_ns() - mono) // 1_000_000)
+    emit("CPU_CARD")
 
 
 def main():

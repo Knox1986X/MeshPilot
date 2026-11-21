@@ -10,6 +10,7 @@ kill -0 "$app"
 echo "Проверено: появилось нативное окно MeshPilot с PID запущенного процесса"
 if [[ $# == 3 ]]; then
   # Только в выделенной VM. Временной предел действует и на пробуждение шины доступности.
-  timeout 27s "$3" "$app" || exit 42
+  timeout 27s "$3" "$app" ram || exit 42
+  timeout 27s "$3" "$app" cpu || exit 43
   kill -0 "$app"
 fi

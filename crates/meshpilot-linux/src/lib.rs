@@ -1,5 +1,7 @@
 //! Пассивные пробы фиксированных системных файлов. Внешние программы не запускаются.
+mod cpu;
 mod ram;
+pub use cpu::cpu_snapshot;
 pub use ram::ram_snapshot;
 
 use meshpilot_core::{Check, DoctorReport, Finding, SCHEMA_VERSION, StatusReport};
@@ -7,6 +9,7 @@ use std::{
     fs::{self, File},
     io::{self, Read},
     path::Path,
+    time::SystemTime,
 };
 
 // os-release и маркер дистрибутива — данные. Не source, без расширения переменных.
@@ -42,6 +45,15 @@ fn bounded_text(file: impl Read) -> Option<String> {
     let mut text = String::new();
     file.take(65537).read_to_string(&mut text).ok()?;
     (text.len() <= 65536).then_some(text)
+}
+
+fn utc_stamp(time: SystemTime) -> Option<String> {
+    let millis = time
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .ok()?
+        .as_millis();
+    let stamp = jiff::Timestamp::from_millisecond(millis.try_into().ok()?).ok()?;
+    Some(format!("{stamp:.3}"))
 }
 
 struct Platform {
@@ -83,6 +95,7 @@ fn platform() -> Platform {
 pub fn status() -> StatusReport {
     let platform = platform();
     StatusReport {
+        cpu: cpu_snapshot(),
         ram: ram_snapshot(),
         ..StatusReport::unmeasured(platform.id, platform.cachyos)
     }

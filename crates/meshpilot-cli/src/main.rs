@@ -1,7 +1,17 @@
-use meshpilot_core::{Finding, RamObservation};
+use meshpilot_core::{CpuObservation, Finding, RamObservation};
 use std::{env, process::ExitCode};
 
 const USAGE: &str = "MeshPilot · диагностика без изменений\n\nmeshpilot <status|doctor> [--json] [--dry-run]\n\n  status   Состояние системы и доступность наблюдений\n  doctor   Пассивная проверка ОС, утилит и файлов WebKitGTK на CachyOS\n\nКоды: 0 — отчёт готов, 2 — ошибка аргументов, 3 — ограниченная диагностика.";
+
+fn cpu_line(cpu: Option<&CpuObservation>) -> String {
+    match cpu {
+        Some(c) => format!(
+            "CPU: {:.1} % за {} мс · {} · {}",
+            c.usage_percent, c.interval_ms, c.source, c.observed_at_utc
+        ),
+        None => "CPU: нет данных".into(),
+    }
+}
 
 fn ram_line(ram: Option<&RamObservation>) -> String {
     match ram {
@@ -45,12 +55,13 @@ fn main() -> ExitCode {
                 );
             } else {
                 println!(
-                    "MeshPilot · только чтение\nСистема: {}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
+                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
                     match (r.cachyos, r.os_id.as_deref()) {
                         (Some(true), Some("arch")) => "CachyOS (ID=arch)",
                         (None, Some("arch")) => "arch (CachyOS не подтверждена)",
                         (_, id) => id.unwrap_or("не удалось определить"),
                     },
+                    cpu_line(r.cpu.as_ref()),
                     ram_line(r.ram.as_ref())
                 );
             }
@@ -91,6 +102,23 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cpu_text_keeps_interval_source_time_and_measured_zero() {
+        let cpu = CpuObservation {
+            usage_percent: 0.0,
+            interval_ms: 637,
+            busy_ticks: 0,
+            total_ticks: 81,
+            source: "/proc/stat",
+            observed_at_utc: "2026-11-20T10:00:00.123Z".into(),
+        };
+        assert_eq!(
+            cpu_line(Some(&cpu)),
+            "CPU: 0.0 % за 637 мс · /proc/stat · 2026-11-20T10:00:00.123Z"
+        );
+        assert_eq!(cpu_line(None), "CPU: нет данных");
+    }
 
     #[test]
     fn text_distinguishes_measured_zero_from_unavailable() {

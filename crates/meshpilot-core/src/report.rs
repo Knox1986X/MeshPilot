@@ -12,6 +12,17 @@ pub struct RamObservation {
     pub observed_at_utc: String,
 }
 
+/// Загрузка по двум чтениям; интервал монотонный, UTC относится к концу замера.
+#[derive(Debug, Serialize)]
+pub struct CpuObservation {
+    pub usage_percent: f64,
+    pub interval_ms: u64,
+    pub busy_ticks: u64,
+    pub total_ticks: u64,
+    pub source: &'static str,
+    pub observed_at_utc: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct StatusReport {
     pub schema_version: u8,
@@ -20,6 +31,7 @@ pub struct StatusReport {
     pub os_id: Option<String>,
     pub cachyos: Option<bool>,
     /// None означает отсутствие наблюдения, а не отрицательный результат.
+    pub cpu: Option<CpuObservation>,
     pub ram: Option<RamObservation>,
     pub online: Option<bool>,
     pub dns: Option<String>,
@@ -35,6 +47,7 @@ impl StatusReport {
             read_only: true,
             os_id,
             cachyos,
+            cpu: None,
             ram: None,
             online: None,
             dns: None,
@@ -82,9 +95,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unknown_ram_is_explicitly_null_in_v1() {
+    fn unknown_measurements_are_explicitly_null_in_v1() {
         let json = serde_json::to_value(StatusReport::unmeasured(None, None)).unwrap();
         assert_eq!(json["schema_version"], 1);
+        assert_eq!(json.get("cpu"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("ram"), Some(&serde_json::Value::Null));
     }
 }

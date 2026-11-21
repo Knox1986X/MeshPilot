@@ -5,15 +5,16 @@
 #include <string.h>
 
 static gboolean saw_app, saw_card;
+static const char *heading, *source;
 
 static gboolean find_card(AtspiAccessible *node, unsigned depth, unsigned *budget) {
     if (!node || depth > 32 || !*budget) return FALSE;
     --*budget;
     gchar *name = atspi_accessible_get_name(node, NULL);
-    gboolean card = name && g_str_has_prefix(name, "Занято RAM");
+    gboolean card = name && g_str_has_prefix(name, heading);
     if (card) saw_card = TRUE;
     gboolean found = card && strlen(name) < 256 &&
-                     g_strstr_len(name, -1, "/proc/meminfo") && g_str_has_suffix(name, "UTC");
+                     g_strstr_len(name, -1, source) && g_str_has_suffix(name, "UTC");
     if (found) puts(name);
     g_free(name);
     if (found) return TRUE;
@@ -28,9 +29,12 @@ static gboolean find_card(AtspiAccessible *node, unsigned depth, unsigned *budge
 }
 
 int main(int argc, char **argv) {
-    if (argc != 2) return 2;
+    if (argc != 3) return 2;
+    if (strcmp(argv[2], "ram") == 0) { heading = "Занято RAM"; source = "/proc/meminfo"; }
+    else if (strcmp(argv[2], "cpu") == 0) { heading = "Загрузка CPU"; source = "/proc/stat"; }
+    else return 2;
     guint pid = (guint)g_ascii_strtoull(argv[1], NULL, 10);
-    if (!pid || atspi_init() != 0) { fputs("GUI_RAM_BUS\n", stderr); return 1; }
+    if (!pid || atspi_init() != 0) { fputs("GUI_METRIC_BUS\n", stderr); return 1; }
     atspi_set_timeout(800, 3000);
     AtspiAccessible *desktop = atspi_get_desktop(0);
     if (!desktop) return 1;
@@ -51,6 +55,6 @@ int main(int argc, char **argv) {
     }
     g_object_unref(desktop);
     atspi_exit();
-    if (!found) fprintf(stderr, "%s\n", !saw_app ? "GUI_RAM_APP" : saw_card ? "GUI_RAM_EMPTY" : "GUI_RAM_TREE");
+    if (!found) fprintf(stderr, "%s\n", !saw_app ? "GUI_METRIC_APP" : saw_card ? "GUI_METRIC_EMPTY" : "GUI_METRIC_TREE");
     return found ? 0 : 1;
 }

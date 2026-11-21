@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { ArrowDown, ArrowUp, Cpu, HardDrive, Network } from "@lucide/svelte";
-  let { kind }: { kind: "cpu" | "disk" | "net" } = $props();
+  import { ArrowDown, ArrowUp, HardDrive, Network } from "@lucide/svelte";
+  let { kind }: { kind: "disk" | "net" } = $props();
   const metrics = {
-    cpu: { name: "CPU Load", icon: Cpu, unit: "%", detail: "Логические потоки: —" },
     disk: { name: "Disk Storage", icon: HardDrive, unit: "GB", detail: "Разделы: —" },
     net: { name: "Network I/O", icon: Network, unit: "B/s", detail: "Приём / передача" },
   } as const;

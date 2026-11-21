@@ -36,10 +36,11 @@ class Project(unittest.TestCase):
         self.assertNotIn("remote", cap)
         self.assertEqual(cap["windows"], ["main"])
         self.assertEqual(set(cap["permissions"]), {"core:window:allow-" + op for op in
-                         ("minimize", "toggle-maximize", "close", "start-dragging")} | {"allow-read-ram"})
-        permission, = tomllib.loads((DESKTOP / "src-tauri/permissions/ram.toml").read_text())["permission"]
-        self.assertEqual(permission["identifier"], "allow-read-ram")
-        self.assertEqual(permission["commands"], {"allow": ["read_ram"]})
+                         ("minimize", "toggle-maximize", "close", "start-dragging")} | {"allow-read-ram", "allow-read-cpu"})
+        for metric in ("ram", "cpu"):
+            permission, = tomllib.loads((DESKTOP / f"src-tauri/permissions/{metric}.toml").read_text())["permission"]
+            self.assertEqual(permission["identifier"], f"allow-read-{metric}")
+            self.assertEqual(permission["commands"], {"allow": [f"read_{metric}"]})
 
 
 if __name__ == "__main__":

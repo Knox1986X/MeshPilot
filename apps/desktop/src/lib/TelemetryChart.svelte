@@ -9,7 +9,7 @@
   <div class="plot" role="img" aria-label="Пустой график CPU и RAM за последние 60 секунд: нет данных">
     <div class="y-axis" aria-hidden="true">{#each [100, 75, 50, 25, 0] as n}<span>{n}%</span>{/each}</div>
     <div class="plot-area"><div class="gridlines" aria-hidden="true">{#each Array(5) as _}<i></i>{/each}</div>
-      <div class="plot-message"><span class="signal-icon"><Radio size={17} /></span><strong>Нет истории измерений</strong><small>Снимок RAM не образует временной ряд</small></div>
+      <div class="plot-message"><span class="signal-icon"><Radio size={17} /></span><strong>Нет истории измерений</strong><small>Разовые замеры не образуют временной ряд</small></div>
     </div>
     <div class="x-axis" aria-hidden="true">{#each times as t}<span>{t}</span>{/each}</div>
   </div>

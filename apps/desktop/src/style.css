@@ -97,13 +97,15 @@ h1 { font-size: 30px; line-height: 1.24; letter-spacing: -1.2px; font-weight: 64
 .metric-sub { font-size: 11px; color: #8592a8; }
 .metric-track { background: #232332; width: 100%; height: 4px; border-radius: 2px; margin-top: auto; }
 .sample-label { margin-left: auto; color: #70d9b6; font: 10px var(--mono); }
-.refresh-ram { width: 22px; height: 24px; }
-.ram .metric-head { gap: 6px; }
-.ram-reading { display: flex; align-items: baseline; gap: 6px; margin: 4px 0 1px; white-space: nowrap; }
-.ram-reading strong { font-size: clamp(20px, 1.6vw, 30px); letter-spacing: -.7px; }
-.ram-reading small, .ram-meta { color: var(--secondary); font: 10px/1.3 var(--mono); }
-.ram-meta { display: flex; flex-wrap: wrap; column-gap: 8px; }
-.ram .metric-track i { display: block; height: 100%; border-radius: inherit; background: var(--green); }
+.refresh-sample { width: 22px; height: 24px; }
+.snapshot .metric-head { gap: 6px; }
+.sample-reading { display: flex; align-items: baseline; gap: 6px; margin: 4px 0 1px; white-space: nowrap; }
+.sample-reading strong { font-size: clamp(20px, 1.6vw, 30px); letter-spacing: -.7px; }
+.sample-reading small, .sample-meta { color: var(--secondary); font: 10px/1.3 var(--mono); }
+.sample-meta { display: flex; flex-wrap: wrap; column-gap: 8px; }
+.snapshot .metric-track i { display: block; height: 100%; border-radius: inherit; background: var(--green); }
+.cpu .metric-track i { background: var(--lavender); }
+.cpu .sample-label { color: var(--lavender); }
 .net-values, .net-values>span { display: flex; align-items: baseline; gap: 5px; }
 .net-values { gap: 16px; }
 .net-values svg { color: var(--cyan); }

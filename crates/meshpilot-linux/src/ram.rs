@@ -1,5 +1,5 @@
 //! Один снимок памяти, видимой ядру через procfs (не лимит cgroup и не RSS приложения).
-use crate::bounded_text;
+use crate::{bounded_text, utc_stamp};
 use meshpilot_core::RamObservation;
 use std::{fs::File, io, time::SystemTime};
 
@@ -15,11 +15,7 @@ fn observe(
     now: impl FnOnce() -> SystemTime,
 ) -> Option<RamObservation> {
     let text = bounded_text(file.ok()?)?;
-    let millis = now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .ok()?
-        .as_millis();
-    let stamp = jiff::Timestamp::from_millisecond(millis.try_into().ok()?).ok()?;
+    let observed_at_utc = utc_stamp(now())?;
     let (mut total, mut available) = (None, None);
     for line in text.lines() {
         let Some((key, raw)) = line.split_once(':') else {
@@ -53,7 +49,7 @@ fn observe(
         total_bytes,
         used_bytes: total_bytes.checked_sub(available?)?,
         source: SOURCE,
-        observed_at_utc: format!("{stamp:.3}"),
+        observed_at_utc,
     })
 }
 

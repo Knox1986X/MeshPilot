@@ -6,6 +6,8 @@
 
 **Первый прогон CPU** ([`23a62b7`](https://github.com/Knox1986X/MeshPilot/actions/runs/44877404399/job/136765038333)): `GUEST, CLI, SESSION, WINDOW, RAM_CARD, UNCHANGED, FAIL GUI_CPU_EMPTY`. JSON CLI проверен, но наблюдатель не получил полную числовую подпись CPU; окно или штатное выключение VM не заменяют `CPU_CARD`. По одному этому коду нельзя определить, был ли недоступен источник, IPC или обновлённое доступное имя.
 
+**CPU и RAM подтверждены на `4166163`:** [Handheld Live 260628, job 136766727558](https://github.com/Knox1986X/MeshPilot/actions/runs/44877952056/job/136766727558) получил `GUEST → CLI → SESSION → WINDOW → RAM_CARD → CPU_CARD → UNCHANGED → PASS` и код QEMU 0. CLI измерил реальные дельты в границах независимой пары чтений гостя. После сохранения DOM-узлов `aria-labelledby` и сброса кэша наблюдателя обе подписи прочитаны в видимом окне от `liveuser`. Это подтверждение текущей версии, не доказательство единственной причины предыдущего сбоя. [Ubuntu CI](https://github.com/Knox1986X/MeshPilot/actions/runs/44877954689) прошёл отдельно.
+
 ## Результаты раздельно по профилям
 
 | Профиль и источник | Наблюдение | Закреплённый SHA-256 ISO |

@@ -11,7 +11,9 @@ export async function testSnapshotCards(browser, origin) {
     const ram = { used_bytes: 1.5 * 2 ** 30, total_bytes: 8 * 2 ** 30, source: "/proc/meminfo", observed_at_utc };
     const cpu = { busy_ticks: 3, total_ticks: 8, usage_percent: 37.5, interval_ms: 637, source: "/proc/stat", observed_at_utc };
     const disk = { used_bytes: 1.25 * 2 ** 30, total_bytes: 4 * 2 ** 30, available_bytes: 2 * 2 ** 30, source: "statvfs(/)", observed_at_utc };
+    const uptime = { uptime_seconds: 11931, source: "/proc/uptime", observed_at_utc };
     const replies = {
+      uptime: [uptime, { ...uptime, uptime_seconds: 0 }, null, { ...uptime, source: "/proc/stat" }, { ...uptime, observed_at_utc: "" }, "error"],
       net: [{ source: "/proc/net/dev", observed_at_utc, interval_ms: 500, interfaces: [] }],
       disk: [disk, { ...disk, used_bytes: 0, available_bytes: 0 }, null,
         { ...disk, available_bytes: disk.total_bytes - disk.used_bytes + 1 },
@@ -21,14 +23,16 @@ export async function testSnapshotCards(browser, origin) {
       cpu: [cpu, { ...cpu, busy_ticks: 0, usage_percent: 0 }, null, { ...cpu, usage_percent: 101 }, { ...cpu, interval_ms: 0 }, { ...cpu, total_ticks: 0 }, { ...cpu, usage_percent: 50 }, { ...cpu, source: "/wrong" }],
     };
     window.isTauri = true;
-    window.calls = { ram: [], cpu: [], disk: [], net: [] };
+    window.calls = { ram: [], cpu: [], disk: [], net: [], uptime: [] };
     window.__TAURI_INTERNALS__ = { invoke: async (cmd, args) => {
-      const key = { read_ram: "ram", read_cpu: "cpu", read_root_fs: "disk", read_network_io: "net" }[cmd];
+      const key = { read_ram: "ram", read_cpu: "cpu", read_root_fs: "disk", read_network_io: "net", read_uptime: "uptime" }[cmd];
       if (!key) throw new Error("Неизвестная команда");
       const n = window.calls[key].push([cmd, args]);
       if (key === "cpu" && n === 1) await new Promise(resolve => { window.finishCpu = resolve; });
       if (n > replies[key].length) throw new Error("IPC недоступен");
-      return replies[key][n - 1];
+      const reply = replies[key][n - 1];
+      if (reply === "error") throw new Error("обрыв IPC");
+      return reply;
     } };
   });
   try {
@@ -100,7 +104,27 @@ export async function testSnapshotCards(browser, origin) {
     }
     assert.deepEqual(await page.evaluate(() => window.calls.disk), Array.from({ length: 11 }, () => ["read_root_fs", {}]));
     assert.deepEqual(await page.evaluate(() => window.calls.net), [["read_network_io", {}]]);
+    // Панель «Среда»: одно чтение аптайма при открытии и ручные чтения по кнопке.
+    assert.equal(await page.locator("#uptime-value").innerText(), "3 ч 18 м 51 с");
+    assert.equal(await page.locator(".info-panel time").getAttribute("datetime"), "2026-11-20T12:34:56.789Z");
+    assert.match((await page.locator("#uptime-meta").innerText()).replace(/\s+/g, " "), /^\/proc\/uptime 2026-11-20 12:34:56 UTC$/);
+    const uptimeButton = page.getByRole("button", { name: "Обновить время работы" });
+    for (let n = 2; n <= 6; n++) {
+      await uptimeButton.click();
+      await page.waitForFunction(n => window.calls.uptime.length === n, n);
+      const expected = n === 2 ? "0 с" : null;
+      if (expected) {
+        assert.equal(await page.locator("#uptime-value").innerText(), expected);
+        assert.equal(await page.locator(".info-panel time").getAttribute("datetime"), "2026-11-20T12:34:56.789Z");
+      } else {
+        assert.equal(await page.locator("#uptime-value").innerText(), "—");
+        assert.equal(await page.locator(".info-panel time").count(), 0);
+        const why = n === 3 ? "Нет достоверного замера" : n === 6 ? "Канал недоступен" : "Некорректный ответ";
+        assert.equal(await page.locator("#uptime-meta").innerText(), `${why}: /proc/uptime`);
+      }
+    }
+    assert.deepEqual(await page.evaluate(() => window.calls.uptime), Array.from({ length: 6 }, () => ["read_uptime", {}]));
     assert.deepEqual(errors, []);
-    console.log("CPU/RAM/ФС /: источник, UTC, единицы, интервал CPU, место для пользователя, ноль, отказ и независимое обновление: ОК");
+    console.log("CPU/RAM/ФС / и аптайм: источник, UTC, единицы, интервал CPU, ноль, отказ и независимое обновление: ОК");
   } finally { await page.close(); }
 }

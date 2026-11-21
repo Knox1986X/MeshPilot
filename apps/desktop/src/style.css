@@ -178,7 +178,9 @@ h1 { font-size: 30px; line-height: 1.24; letter-spacing: -1.2px; font-weight: 64
 .info-list { margin-top: 9px; }
 .info-list>div { font-size: 12px; padding: 3px 0; }
 .info-list dt { color: var(--secondary); }
-.info-list dd { font: 11px var(--mono); }
+.info-list dd { font: 11px var(--mono); display: flex; align-items: baseline; justify-content: flex-end; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.info-meta { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; font-size: 10px; color: var(--secondary); }
+.panel-tools { display: flex; align-items: center; gap: 8px; }
 .summary { margin-top: 16px; }
 .summary-items { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 15px; margin-top: 15px; }
 .summary-items>a, .summary-items>div { display: flex; gap: 8px; color: #949eb2; align-items: flex-start; }

@@ -1,8 +1,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
-export type Metric = "cpu" | "ram" | "disk" | "net";
+export type Metric = "cpu" | "ram" | "disk" | "net" | "uptime";
 
-/** Те же объекты, что status --json → cpu, ram, root_fs и network_io. Браузер не является источником метрик. */
+/** Те же объекты, что status --json → cpu, ram, root_fs, network_io и uptime. Браузер не является источником метрик. */
 export interface CpuObservation {
   usage_percent: number;
   busy_ticks: number;
@@ -37,6 +37,12 @@ export interface NetworkIoObservation {
   interfaces: InterfaceIo[];
   interval_ms: number;
   source: "/proc/net/dev";
+  observed_at_utc: string;
+}
+
+export interface UptimeObservation {
+  uptime_seconds: number;
+  source: "/proc/uptime";
   observed_at_utc: string;
 }
 
@@ -90,9 +96,14 @@ function validCpu(value: unknown): value is CpuObservation {
     && typeof c.usage_percent === "number" && c.usage_percent >= 0 && c.usage_percent <= 100
     && Math.abs(c.usage_percent - 100 * (c.busy_ticks / c.total_ticks)) < 1e-9;
 }
+function validUptime(value: unknown): value is UptimeObservation {
+  if (!value || typeof value !== "object") return false;
+  const u = value as Partial<UptimeObservation>;
+  return u.source === "/proc/uptime" && utcStamp(u.observed_at_utc) && whole(u.uptime_seconds);
+}
 export type ReadIssue = "browser" | "unavailable" | "invalid" | "ipc";
 export type Reading<T> = { value: T; issue: null } | { value: null; issue: ReadIssue };
-async function read<T>(cmd: "read_ram" | "read_cpu" | "read_root_fs" | "read_network_io", valid: (value: unknown) => value is T): Promise<Reading<T>> {
+async function read<T>(cmd: "read_ram" | "read_cpu" | "read_root_fs" | "read_network_io" | "read_uptime", valid: (value: unknown) => value is T): Promise<Reading<T>> {
   if (!isTauri()) return { value: null, issue: "browser" };
   try {
     const result = await invoke<unknown>(cmd);
@@ -104,6 +115,7 @@ export const readCpu = () => read("read_cpu", validCpu);
 export const readRootFs = () => read("read_root_fs", validRootFs);
 export const readNetworkIo = () => read("read_network_io", validNetworkIo);
 export const readRam = () => read("read_ram", validRam);
+export const readUptime = () => read("read_uptime", validUptime);
 
 const issues = { browser: "В браузере источник недоступен", ipc: "Канал недоступен", invalid: "Некорректный ответ", unavailable: "Нет достоверного замера" };
 export function readHint(issue: ReadIssue | null, pending: boolean, source: string) {
@@ -123,3 +135,17 @@ export function formatBytes(bytes: number): string {
 }
 const tenth = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 });
 export function formatPercent(p: number): string { return `${tenth.format(p)} %`; }
+
+// 11931 → «3 ч 18 м 51 с»; старшие единицы показываются только выше ненулевой младшей.
+export function formatUptime(totalSeconds: number): string {
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor(totalSeconds / 3600) % 24;
+  const minutes = Math.floor(totalSeconds / 60) % 60;
+  const seconds = totalSeconds % 60;
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} д`);
+  if (days > 0 || hours > 0) parts.push(`${hours} ч`);
+  if (days > 0 || hours > 0 || minutes > 0) parts.push(`${minutes} м`);
+  parts.push(`${seconds} с`);
+  return parts.join(" ");
+}

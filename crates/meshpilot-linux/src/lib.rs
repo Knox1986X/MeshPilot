@@ -4,10 +4,12 @@ mod interval;
 mod network_io;
 mod ram;
 mod root_fs;
+mod uptime;
 pub use cpu::cpu_snapshot;
 pub use network_io::network_io_snapshot;
 pub use ram::ram_snapshot;
 pub use root_fs::root_fs_snapshot;
+pub use uptime::uptime_snapshot;
 
 use meshpilot_core::{Check, DoctorReport, Finding, SCHEMA_VERSION, StatusReport};
 use std::{
@@ -109,6 +111,7 @@ pub fn status() -> StatusReport {
         network_io,
         ram: ram_snapshot(),
         root_fs: root_fs_snapshot(),
+        uptime: uptime_snapshot(),
         ..StatusReport::unmeasured(platform.id, platform.cachyos)
     }
 }

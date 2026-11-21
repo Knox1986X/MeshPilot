@@ -95,6 +95,40 @@ def verify_cli_root_fs(sample, started, low, high):
     verify_stamp(sample.get("observed_at_utc"), started, "CLI_FS_TIME")
 
 
+UPTIME_UNITS = {"д": 86400, "ч": 3600, "м": 60, "с": 1}
+
+
+def parse_uptime_value(text):
+    # «3 ч 18 м 51 с» — пары число/единица; показ всегда заканчивается секундами.
+    tokens = text.split()
+    check(len(tokens) >= 2 and len(tokens) % 2 == 0 and tokens[-1] == "с", "GUI_UPTIME_VALUE")
+    total = 0
+    for i in range(0, len(tokens), 2):
+        number, unit = tokens[i], tokens[i + 1]
+        check(number.isdigit() and unit in UPTIME_UNITS, "GUI_UPTIME_VALUE")
+        total += int(number) * UPTIME_UNITS[unit]
+    return total
+
+
+def verify_cli_uptime(observation, started, low, high):
+    check(isinstance(observation, dict) and observation.get("source") == "/proc/uptime", "CLI_UPTIME_SOURCE")
+    seconds = observation.get("uptime_seconds")
+    check(type(seconds) is int and seconds >= 0 and low <= seconds <= high, "CLI_UPTIME_BRACKET")
+    verify_stamp(observation.get("observed_at_utc"), started, "CLI_UPTIME_TIME")
+
+
+def verify_uptime_card(label, started, low, high):
+    # Доступное имя строки панели «Среда» из видимых dt, значения, источника и time.
+    label = label.replace("\xa0", "").replace("\u202f", "")
+    match = re.fullmatch(r"Время работы\s+(.+)\s+/proc/uptime\s+"
+                         r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC", label)
+    check(match, "GUI_UPTIME_LABEL")
+    seconds = parse_uptime_value(match.group(1))
+    check(low <= seconds <= high, "GUI_UPTIME_BRACKET")
+    stamp = datetime.fromisoformat(match.group(2)).replace(tzinfo=timezone.utc).timestamp()
+    check(started <= stamp <= time.time(), "GUI_UPTIME_TIME")
+
+
 def verify_root_fs_card(label, started, low, high):
     quantity = r"([0-9]+(?:,[0-9]{1,2})?) (Б|КиБ|МиБ|ГиБ|ТиБ|ПиБ)"
     label = label.replace("\xa0", "").replace("\u202f", "")

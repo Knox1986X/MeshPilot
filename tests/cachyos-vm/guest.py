@@ -12,7 +12,8 @@ import time
 from pathlib import Path
 
 from checks import (Failure, check, proc_cpu_ticks, verify_cli_cpu, verify_cpu_card,
-                    verify_cli_ram, verify_ram_card, verify_cli_root_fs, verify_root_fs_card)
+                    verify_cli_ram, verify_ram_card, verify_cli_root_fs, verify_root_fs_card,
+                    verify_cli_uptime, verify_uptime_card)
 
 from net_checks import net_ticks, verify_cli_net, verify_loopback_card, verify_shared_window
 
@@ -107,7 +108,7 @@ def run_checks(emit, home):
         # Не терять код выхода и диагностику самого испытуемого процесса. Произвольный stdout окна не публикуем.
         record = json.loads(user(["/usr/bin/python3", "-I", "-B", MEDIA / "fs_witness.py", *args], timeout=timeout))
         result = subprocess.CompletedProcess(args, record["returncode"], record["out"], record["err"])
-        return result, (record["low"], record["high"])
+        return result, record["low"], record["high"], record["up_lo"], record["up_hi"]
 
     # Только неизменившиеся данные реального образа. Не подменять os-release в тесте.
     raw_id = platform.freedesktop_os_release()["ID"]
@@ -115,7 +116,7 @@ def run_checks(emit, home):
     before = proc_cpu_ticks()
     mono = time.monotonic_ns()
     started = time.time_ns()
-    cli, cli_bounds = observed([MEDIA / "meshpilot", "status", "--json"], timeout=12)
+    cli, fs_low, fs_high, up_lo, up_hi = observed([MEDIA / "meshpilot", "status", "--json"], timeout=12)
     cli.check_returncode()
     status = json.loads(cli.stdout)
     elapsed_ms = (time.monotonic_ns() - mono) // 1_000_000
@@ -126,7 +127,8 @@ def run_checks(emit, home):
     check(status["read_only"] is True and status["os_id"] == raw_id and status["cachyos"] is True, "CLI_PLATFORM")
     check(all(status[k] is None for k in ("online", "dns", "updatable_apps", "security_fixes", "last_success_utc")), "CLI_OBSERVATIONS")
     verify_cli_ram(status.get("ram"), started)
-    verify_cli_root_fs(status.get("root_fs"), started, *cli_bounds)
+    verify_cli_root_fs(status.get("root_fs"), started, fs_low, fs_high)
+    verify_cli_uptime(status.get("uptime"), started, up_lo, up_hi)
     doctor = json.loads(user([MEDIA / "meshpilot", "doctor", "--json", "--dry-run"]))
     checks = {c["id"]: c["finding"] for c in doctor["checks"]}
     check(doctor["read_only"] is True and checks["os"] == checks["pacman"] == "detected", "CLI_DOCTOR")
@@ -155,15 +157,15 @@ def run_checks(emit, home):
     mono = time.monotonic_ns()
     observer_error = None
     try:
-        window, window_bounds = observed([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "metric-name"], timeout=165)
+        window, wfs_low, wfs_high, wup_lo, wup_hi = observed([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "metric-name"], timeout=200)
         window.check_returncode()
         output = window.stdout
     except subprocess.CalledProcessError as err:
-        if err.returncode not in (42, 43, 44, 45):
+        if err.returncode not in (42, 43, 44, 45, 46):
             raise Failure("GUI_WINDOW") from err
         codes = {"GUI_METRIC_" + suffix for suffix in ("BUS", "APP", "TREE", "EMPTY", "IPC", "INVALID", "UNAVAILABLE", "PENDING", "PARTIAL")}
         reason = next((line for line in err.stderr.splitlines() if line in codes), "GUI_METRIC_OBSERVER")
-        observer_error = ({42: "RAM", 43: "CPU", 44: "FS", 45: "NET"}[err.returncode], reason)
+        observer_error = ({42: "RAM", 43: "CPU", 44: "FS", 45: "NET", 46: "UPTIME"}[err.returncode], reason)
         output = err.stdout
     except subprocess.SubprocessError as err:
         raise Failure("GUI_WINDOW") from err
@@ -180,10 +182,12 @@ def run_checks(emit, home):
     emit("RAM_CARD")
     verify_cpu_card(label("CPU", "Загрузка CPU"), started, (time.monotonic_ns() - mono) // 1_000_000)
     emit("CPU_CARD")
-    verify_root_fs_card(label("FS", "Занято на /"), started, *window_bounds)
+    verify_root_fs_card(label("FS", "Занято на /"), started, wfs_low, wfs_high)
     emit("ROOT_FS_CARD")
     verify_loopback_card(label("NET", "Трафик сети"), started, (time.monotonic_ns() - mono) // 1_000_000, net_before, net_ticks())
     emit("NET_IO_CARD")
+    verify_uptime_card(label("UPTIME", "Время работы"), started, wup_lo, wup_hi)
+    emit("UPTIME_CARD")
 
 
 def main():

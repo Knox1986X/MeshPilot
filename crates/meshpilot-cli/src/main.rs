@@ -1,5 +1,6 @@
 use meshpilot_core::{
     CpuObservation, Finding, NetworkIoObservation, RamObservation, RootFsObservation,
+    UptimeObservation,
 };
 use std::{env, fmt::Write, process::ExitCode};
 
@@ -65,6 +66,38 @@ fn network_lines(sample: Option<&NetworkIoObservation>) -> String {
     text
 }
 
+/// 11931 с → «3 ч 12 м 31 с». Старшие единицы показываются, только если они
+/// уже выше нулевой младшей, и всегда остаётся целое число секунд.
+fn format_uptime(total_seconds: u64) -> String {
+    let (days, rem) = (total_seconds / 86_400, total_seconds % 86_400);
+    let (hours, rem) = (rem / 3600, rem % 3600);
+    let (minutes, seconds) = (rem / 60, rem % 60);
+    let mut parts: Vec<String> = Vec::new();
+    if days > 0 {
+        parts.push(format!("{days} д"));
+    }
+    if days > 0 || hours > 0 {
+        parts.push(format!("{hours} ч"));
+    }
+    if days > 0 || hours > 0 || minutes > 0 {
+        parts.push(format!("{minutes} м"));
+    }
+    parts.push(format!("{seconds} с"));
+    parts.join(" ")
+}
+
+fn uptime_line(sample: Option<&UptimeObservation>) -> String {
+    match sample {
+        Some(s) => format!(
+            "Время работы: {} · {} · {}",
+            format_uptime(s.uptime_seconds),
+            s.source,
+            s.observed_at_utc
+        ),
+        None => "Время работы: нет данных".into(),
+    }
+}
+
 fn main() -> ExitCode {
     let mut command = None;
     let mut json = false;
@@ -97,12 +130,13 @@ fn main() -> ExitCode {
                 );
             } else {
                 println!(
-                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
+                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\n{}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
                     match (r.cachyos, r.os_id.as_deref()) {
                         (Some(true), Some("arch")) => "CachyOS (ID=arch)",
                         (None, Some("arch")) => "arch (CachyOS не подтверждена)",
                         (_, id) => id.unwrap_or("не удалось определить"),
                     },
+                    uptime_line(r.uptime.as_ref()),
                     cpu_line(r.cpu.as_ref()),
                     ram_line(r.ram.as_ref()),
                     root_fs_line(r.root_fs.as_ref()),
@@ -162,6 +196,39 @@ mod tests {
             "CPU: 0.0 % за 637 мс · /proc/stat · 2026-11-20T10:00:00.123Z"
         );
         assert_eq!(cpu_line(None), "CPU: нет данных");
+    }
+
+    #[test]
+    fn uptime_format_omits_zero_leading_units_and_keeps_seconds() {
+        assert_eq!(format_uptime(0), "0 с");
+        assert_eq!(format_uptime(59), "59 с");
+        assert_eq!(format_uptime(60), "1 м 0 с");
+        assert_eq!(format_uptime(3723), "1 ч 2 м 3 с");
+        assert_eq!(format_uptime(86_400), "1 д 0 ч 0 м 0 с");
+        assert_eq!(format_uptime(90_061), "1 д 1 ч 1 м 1 с");
+        assert_eq!(format_uptime(11_931), "3 ч 18 м 51 с");
+    }
+
+    #[test]
+    fn uptime_text_keeps_source_time_and_measured_zero() {
+        let s = UptimeObservation {
+            uptime_seconds: 11_931,
+            source: "/proc/uptime",
+            observed_at_utc: "2026-11-20T10:00:00.123Z".into(),
+        };
+        assert_eq!(
+            uptime_line(Some(&s)),
+            "Время работы: 3 ч 18 м 51 с · /proc/uptime · 2026-11-20T10:00:00.123Z"
+        );
+        let zero = UptimeObservation {
+            uptime_seconds: 0,
+            ..s
+        };
+        assert_eq!(
+            uptime_line(Some(&zero)),
+            "Время работы: 0 с · /proc/uptime · 2026-11-20T10:00:00.123Z"
+        );
+        assert_eq!(uptime_line(None), "Время работы: нет данных");
     }
 
     #[test]

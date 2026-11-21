@@ -57,6 +57,14 @@ pub struct NetworkIoObservation {
     pub observed_at_utc: String,
 }
 
+/// Целые секунды с момента загрузки ядра из одного чтения, не тикер.
+#[derive(Debug, Serialize)]
+pub struct UptimeObservation {
+    pub uptime_seconds: u64,
+    pub source: &'static str,
+    pub observed_at_utc: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct StatusReport {
     pub schema_version: u8,
@@ -69,6 +77,7 @@ pub struct StatusReport {
     pub ram: Option<RamObservation>,
     pub root_fs: Option<RootFsObservation>,
     pub network_io: Option<NetworkIoObservation>,
+    pub uptime: Option<UptimeObservation>,
     pub online: Option<bool>,
     pub dns: Option<String>,
     pub updatable_apps: Option<u32>,
@@ -87,6 +96,7 @@ impl StatusReport {
             ram: None,
             root_fs: None,
             network_io: None,
+            uptime: None,
             online: None,
             dns: None,
             updatable_apps: None,
@@ -137,6 +147,7 @@ mod tests {
         let json = serde_json::to_value(StatusReport::unmeasured(None, None)).unwrap();
         assert_eq!(json["schema_version"], 1);
         assert_eq!(json.get("network_io"), Some(&serde_json::Value::Null));
+        assert_eq!(json.get("uptime"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("cpu"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("root_fs"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("ram"), Some(&serde_json::Value::Null));

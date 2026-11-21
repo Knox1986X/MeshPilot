@@ -60,6 +60,19 @@ async fn read_cpu() -> Option<meshpilot_core::CpuObservation> {
     }
 }
 
+/// Аптайм — одно быстрое чтение, поэтому, как и RAM, не требует рабочего потока.
+#[tauri::command]
+fn read_uptime() -> Option<meshpilot_core::UptimeObservation> {
+    #[cfg(target_os = "linux")]
+    {
+        meshpilot_linux::uptime_snapshot()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
 #[tauri::command]
 async fn read_network_io() -> Option<meshpilot_core::NetworkIoObservation> {
     #[cfg(target_os = "linux")]
@@ -85,7 +98,8 @@ fn main() -> ExitCode {
             read_ram,
             read_cpu,
             read_root_fs,
-            read_network_io
+            read_network_io,
+            read_uptime
         ])
         .run(tauri::generate_context!())
     {

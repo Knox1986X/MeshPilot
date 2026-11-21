@@ -42,6 +42,7 @@ int main(int argc, char **argv) {
     else if (strcmp(argv[2], "cpu") == 0) { heading = "Загрузка CPU"; source = "/proc/stat"; }
     else if (strcmp(argv[2], "root_fs") == 0) { heading = "Занято на /"; source = "statvfs(/)"; }
     else if (strcmp(argv[2], "net") == 0) { heading = "Трафик сети"; source = "/proc/net/dev"; }
+    else if (strcmp(argv[2], "uptime") == 0) { heading = "Время работы"; source = "/proc/uptime"; }
     else return 2;
     guint pid = (guint)g_ascii_strtoull(argv[1], NULL, 10);
     if (!pid || atspi_init() != 0) { fputs("GUI_METRIC_BUS\n", stderr); return 1; }

@@ -12,6 +12,8 @@
 
 **RX/TX проверены на `e5b70b7`:** [подписанный Handheld Live 260628, job 136812470441](https://github.com/Knox1986X/MeshPilot/actions/runs/44892941245/job/136812470441) — `GUEST → CLI → SESSION → WINDOW → RAM_CARD → CPU_CARD → ROOT_FS_CARD → NET_IO_CARD → UNCHANGED → PASS`, QEMU 0. В CLI проверены перекрытие интервалов CPU и сети, обе дельты и скорости по единственному `lo`. Наблюдатель прочитал RX/TX и время в доступной подписи видимого окна от `liveuser`. Обе скорости проверены в пределах независимых счётчиков вокруг этого запуска. Гость без NIC; сетевой трафик для теста не создавался. Это не тест скорости внешнего линка. [Обычный CI](https://github.com/Knox1986X/MeshPilot/actions/runs/44892946150) прошёл отдельно.
 
+**Время работы проверено на `cbc60b9`:** [подписанный Handheld Live 260628, job 136820797396](https://github.com/Knox1986X/MeshPilot/actions/runs/44895713193/job/136820797396) — `GUEST → CLI → SESSION → WINDOW → RAM_CARD → CPU_CARD → ROOT_FS_CARD → NET_IO_CARD → UPTIME_CARD → UNCHANGED → PASS`, QEMU 0. CLI проверил целые секунды в границах независимых чтений `/proc/uptime` до/после процесса. Наблюдатель прочитал показанные секунды, источник `/proc/uptime` и UTC в строке «Время работы» видимого окна по PID от `liveuser`. Это не время до перезагрузки и не длительность сессии. [Обычный CI](https://github.com/Knox1986X/MeshPilot/actions/runs/44895716964) прошёл отдельно.
+
 ## Результаты раздельно по профилям
 
 | Профиль и источник | Наблюдение | Закреплённый SHA-256 ISO |

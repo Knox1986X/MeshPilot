@@ -5,14 +5,22 @@
 #include <string.h>
 
 static gboolean saw_app, saw_card;
-static const char *heading, *source;
+static const char *heading, *source, *incomplete = "GUI_METRIC_EMPTY";
 
 static gboolean find_card(AtspiAccessible *node, unsigned depth, unsigned *budget) {
     if (!node || depth > 32 || !*budget) return FALSE;
     --*budget;
     gchar *name = atspi_accessible_get_name(node, NULL);
     gboolean card = name && g_str_has_prefix(name, heading);
-    if (card) saw_card = TRUE;
+    if (card) {
+        saw_card = TRUE;
+        // Только коды из закрытого списка. Никогда не печатать произвольное дерево окна.
+        if (strstr(name, "Канал недоступен")) incomplete = "GUI_METRIC_IPC";
+        else if (strstr(name, "Некорректный ответ")) incomplete = "GUI_METRIC_INVALID";
+        else if (strstr(name, "Нет достоверного замера")) incomplete = "GUI_METRIC_UNAVAILABLE";
+        else if (strstr(name, "Чтение")) incomplete = "GUI_METRIC_PENDING";
+        else if (strstr(name, " мс")) incomplete = "GUI_METRIC_PARTIAL";
+    }
     gboolean found = card && strlen(name) < 256 &&
                      g_strstr_len(name, -1, source) && g_str_has_suffix(name, "UTC");
     if (found) puts(name);
@@ -46,6 +54,8 @@ int main(int argc, char **argv) {
             AtspiAccessible *app = atspi_accessible_get_child_at_index(desktop, i, NULL);
             if (app && atspi_accessible_get_process_id(app, NULL) == pid) {
                 saw_app = TRUE;
+                // Не зачитывать кэшированную подпись загрузки после завершения замера.
+                atspi_accessible_clear_cache(app);
                 unsigned budget = 512;
                 found = find_card(app, 0, &budget);
             }
@@ -55,6 +65,6 @@ int main(int argc, char **argv) {
     }
     g_object_unref(desktop);
     atspi_exit();
-    if (!found) fprintf(stderr, "%s\n", !saw_app ? "GUI_METRIC_APP" : saw_card ? "GUI_METRIC_EMPTY" : "GUI_METRIC_TREE");
+    if (!found) fprintf(stderr, "%s\n", !saw_app ? "GUI_METRIC_APP" : saw_card ? incomplete : "GUI_METRIC_TREE");
     return found ? 0 : 1;
 }

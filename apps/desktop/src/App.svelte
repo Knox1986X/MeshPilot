@@ -5,9 +5,9 @@
   import TopBar from "./lib/TopBar.svelte";
   import Dashboard from "./lib/Dashboard.svelte";
   import PreviewView from "./lib/PreviewView.svelte";
-  import { readCpu, readRam, formatBytes, formatPercent, type Metric, type CpuObservation, type RamObservation } from "./lib/measurements";
-  let cpu = $state<CpuObservation | null>(null);
-  let ram = $state<RamObservation | null>(null);
+  import { readCpu, readRam, formatBytes, formatPercent, type Metric, type Reading, type CpuObservation, type RamObservation } from "./lib/measurements";
+  let cpu = $state<Reading<CpuObservation>>({ value: null, issue: "unavailable" });
+  let ram = $state<Reading<RamObservation>>({ value: null, issue: "unavailable" });
   let pending = $state({ ram: false, cpu: false });
   async function refresh(kind: Metric) {
     if (pending[kind]) return;
@@ -31,5 +31,5 @@
 <div class="shell"><a class="skip" href="#main" onclick={(e) => { e.preventDefault(); main.focus(); }}>К содержимому</a>
   <Sidebar {active} /><TopBar {active} />
   <main bind:this={main} id="main" tabindex="-1">{#key active}{#if active === "dashboard"}<Dashboard {cpu} {ram} {pending} {refresh} />{:else}<PreviewView id={active} />{/if}{/key}</main>
-  <footer class="statusbar"><span><i></i>meshpilot ready <b>·</b> только чтение</span><span>cpu {cpu ? formatPercent(cpu.usage_percent) : "—"} <b>·</b> ram {ram ? formatBytes(ram.used_bytes) : "—"} <b>·</b> ↓ — B/s ↑ — B/s</span></footer>
+  <footer class="statusbar"><span><i></i>meshpilot ready <b>·</b> только чтение</span><span>cpu {cpu.value ? formatPercent(cpu.value.usage_percent) : "—"} <b>·</b> ram {ram.value ? formatBytes(ram.value.used_bytes) : "—"} <b>·</b> ↓ — B/s ↑ — B/s</span></footer>
 </div>

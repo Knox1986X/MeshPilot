@@ -36,8 +36,10 @@ export async function testSnapshotCards(browser, origin) {
     await reading("Занято RAM 1,5 ГиБ из 8 ГиБ /proc/meminfo 2026-11-20 12:34:56 UTC", "ram");
     assert.equal(await button("cpu").isDisabled(), true, "ожидание CPU не задерживает RAM");
     assert.equal(await card("cpu").getAttribute("aria-busy"), "true");
+    const labelledValue = await card("cpu").locator("#cpu-value").elementHandle();
     await page.evaluate(() => window.finishCpu());
     await reading("Загрузка CPU 37,5 % за 637 мс /proc/stat 2026-11-20 12:34:56 UTC", "cpu");
+    assert.equal(await labelledValue.evaluate(el => el === document.getElementById("cpu-value")), true, "цель aria-labelledby сохранилась после асинхронного чтения");
     const footer = page.locator("footer");
     assert.match(await footer.innerText(), /cpu 37,5 %.*ram 1,5 ГиБ/s);
     assert.equal(await page.locator(".metric .no-data").count(), 2);
@@ -56,6 +58,8 @@ export async function testSnapshotCards(browser, origin) {
         assert.equal(await card(kind).locator(".no-data").innerText(), "нет данных");
         assert.equal(await card(kind).locator(".metric-value").innerText(), "—");
         assert.equal(await card(kind).locator("time").count(), 0);
+        const expected = n === 3 ? "Нет достоверного замера" : n === calls ? "Канал недоступен" : "Некорректный ответ";
+        assert.ok((await card(kind).locator(".metric-sub").innerText()).includes(expected));
         assert.ok((await footer.innerText()).includes(`${kind} —`));
       }
       if (kind === "cpu") assert.match(await footer.innerText(), /ram 1,5 ГиБ/, "отказ CPU не стирает RAM");

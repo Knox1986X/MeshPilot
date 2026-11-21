@@ -40,12 +40,15 @@ function validCpu(value: unknown): value is CpuObservation {
     && typeof c.usage_percent === "number" && c.usage_percent >= 0 && c.usage_percent <= 100
     && Math.abs(c.usage_percent - 100 * (c.busy_ticks / c.total_ticks)) < 1e-9;
 }
-async function read<T>(cmd: "read_ram" | "read_cpu", valid: (value: unknown) => value is T): Promise<T | null> {
-  if (!isTauri()) return null;
+export type ReadIssue = "browser" | "unavailable" | "invalid" | "ipc";
+export type Reading<T> = { value: T; issue: null } | { value: null; issue: ReadIssue };
+async function read<T>(cmd: "read_ram" | "read_cpu", valid: (value: unknown) => value is T): Promise<Reading<T>> {
+  if (!isTauri()) return { value: null, issue: "browser" };
   try {
     const result = await invoke<unknown>(cmd);
-    return valid(result) ? result : null;
-  } catch { return null; }
+    if (result === null) return { value: null, issue: "unavailable" };
+    return valid(result) ? { value: result, issue: null } : { value: null, issue: "invalid" };
+  } catch { return { value: null, issue: "ipc" }; }
 }
 export const readCpu = () => read("read_cpu", validCpu);
 export const readRam = () => read("read_ram", validRam);

@@ -6,9 +6,9 @@
   import CpuCores from "./CpuCores.svelte";
   import InfoPanel from "./InfoPanel.svelte";
   import SnapshotCard from "./SnapshotCard.svelte";
-  import type { Metric, CpuObservation, RamObservation } from "./measurements";
+  import type { Metric, Reading, CpuObservation, RamObservation } from "./measurements";
   let { cpu, ram, pending, refresh }: {
-    cpu: CpuObservation | null; ram: RamObservation | null; pending: Record<Metric, boolean>; refresh: (kind: Metric) => void
+    cpu: Reading<CpuObservation>; ram: Reading<RamObservation>; pending: Record<Metric, boolean>; refresh: (kind: Metric) => void
   } = $props();
 </script>
 <div class="page dashboard">
@@ -17,8 +17,8 @@
   <div class="pills" aria-label="Статусы системы"><span class="pill"><i></i>CachyOS · не проверено</span><span class="pill blue"><i></i>Kernel: —</span><span class="pill"><i></i>Snapshot: —</span><span class="pill"><i></i>Relay: —</span></div>
   <div class="section-divider"><h2>Системные метрики</h2><i></i><span>04 КАНАЛА</span></div>
   <div class="metrics-grid">
-    <SnapshotCard kind="cpu" sample={cpu} pending={pending.cpu} refresh={() => refresh("cpu")} />
-    <SnapshotCard kind="ram" sample={ram} pending={pending.ram} refresh={() => refresh("ram")} />
+    <SnapshotCard kind="cpu" sample={cpu.value} issue={cpu.issue} pending={pending.cpu} refresh={() => refresh("cpu")} />
+    <SnapshotCard kind="ram" sample={ram.value} issue={ram.issue} pending={pending.ram} refresh={() => refresh("ram")} />
     <MetricCard kind="disk" /><MetricCard kind="net" />
   </div>
   <div class="analysis-grid"><TelemetryChart /><DiskDonut /><CpuCores /><InfoPanel /></div>

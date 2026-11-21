@@ -144,7 +144,7 @@ def run_checks(emit, home):
     except subprocess.CalledProcessError as err:
         if err.returncode not in (42, 43):
             raise Failure("GUI_WINDOW") from err
-        codes = {"GUI_METRIC_BUS", "GUI_METRIC_APP", "GUI_METRIC_TREE", "GUI_METRIC_EMPTY"}
+        codes = {"GUI_METRIC_" + suffix for suffix in ("BUS", "APP", "TREE", "EMPTY", "IPC", "INVALID", "UNAVAILABLE", "PENDING", "PARTIAL")}
         reason = next((line for line in err.stderr.splitlines() if line in codes), "GUI_METRIC_OBSERVER")
         observer_error = ("RAM" if err.returncode == 42 else "CPU", reason)
         output = err.stdout

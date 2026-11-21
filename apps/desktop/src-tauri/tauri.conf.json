@@ -1,0 +1,18 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "MeshPilot",
+  "mainBinaryName": "meshpilot-desktop",
+  "version": "0.1.0",
+  "identifier": "io.github.Knox1986X.MeshPilot",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "label": "main", "title": "MeshPilot", "width": 1500, "height": 960, "minWidth": 640, "minHeight": 520, "decorations": false }],
+    "security": { "capabilities": ["main-window"], "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'" }
+  },
+  "bundle": { "active": false, "icon": ["icons/icon.png"] }
+}

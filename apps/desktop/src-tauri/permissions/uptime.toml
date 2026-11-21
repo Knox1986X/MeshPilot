@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-read-uptime"
+description = "Прочитать время работы системы из /proc/uptime без параметров"
+commands.allow = ["read_uptime"]

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-read-root-fs"
+description = "Прочитать статистику корневой файловой системы без параметров"
+commands.allow = ["read_root_fs"]

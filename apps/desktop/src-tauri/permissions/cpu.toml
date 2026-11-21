@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-read-cpu"
+description = "Измерить общую загрузку CPU без параметров"
+commands.allow = ["read_cpu"]

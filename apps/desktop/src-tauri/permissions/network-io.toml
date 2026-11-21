@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-read-network-io"
+description = "Снять RX/TX по фиксированным счётчикам ядра без параметров и сетевых запросов"
+commands.allow = ["read_network_io"]

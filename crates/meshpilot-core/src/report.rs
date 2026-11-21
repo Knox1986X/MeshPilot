@@ -34,6 +34,30 @@ pub struct CpuObservation {
 }
 
 #[derive(Debug, Serialize)]
+pub struct TransferRates {
+    pub rx_delta_bytes: u64,
+    pub tx_delta_bytes: u64,
+    pub rx_bytes_per_sec: f64,
+    pub tx_bytes_per_sec: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InterfaceIo {
+    pub name: String,
+    /// None: нет сравнимой пары для этого имени. Нулевые скорости — полноценная пара.
+    pub rates: Option<TransferRates>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct NetworkIoObservation {
+    /// Имена во втором чтении, без сложения физических, виртуальных и локальных интерфейсов.
+    pub interfaces: Vec<InterfaceIo>,
+    pub interval_ms: u64,
+    pub source: &'static str,
+    pub observed_at_utc: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct StatusReport {
     pub schema_version: u8,
     pub read_only: bool,
@@ -44,6 +68,7 @@ pub struct StatusReport {
     pub cpu: Option<CpuObservation>,
     pub ram: Option<RamObservation>,
     pub root_fs: Option<RootFsObservation>,
+    pub network_io: Option<NetworkIoObservation>,
     pub online: Option<bool>,
     pub dns: Option<String>,
     pub updatable_apps: Option<u32>,
@@ -61,6 +86,7 @@ impl StatusReport {
             cpu: None,
             ram: None,
             root_fs: None,
+            network_io: None,
             online: None,
             dns: None,
             updatable_apps: None,
@@ -110,6 +136,7 @@ mod tests {
     fn unknown_measurements_are_explicitly_null_in_v1() {
         let json = serde_json::to_value(StatusReport::unmeasured(None, None)).unwrap();
         assert_eq!(json["schema_version"], 1);
+        assert_eq!(json.get("network_io"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("cpu"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("root_fs"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("ram"), Some(&serde_json::Value::Null));

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
 import { preview } from "vite";
+import { testNetworkIo } from "./network-io.mjs";
 import { testSnapshotCards } from "./measurements.mjs";
 
 // Только собранный локальный интерфейс. Системный браузер задаёт среда проверки.
@@ -56,6 +57,7 @@ try {
   assert.deepEqual(errors, []);
   assert.equal(await page.evaluate(() => window.previewInvokes), 0);
   await testSnapshotCards(browser, origin);
+  await testNetworkIo(browser, origin);
   console.log("Навигация, пустые состояния и отсутствие внешних запросов: ОК");
 } finally {
   await browser?.close();

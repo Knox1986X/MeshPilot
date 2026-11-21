@@ -1,5 +1,7 @@
-use meshpilot_core::{CpuObservation, Finding, RamObservation, RootFsObservation};
-use std::{env, process::ExitCode};
+use meshpilot_core::{
+    CpuObservation, Finding, NetworkIoObservation, RamObservation, RootFsObservation,
+};
+use std::{env, fmt::Write, process::ExitCode};
 
 const USAGE: &str = "MeshPilot · диагностика без изменений\n\nmeshpilot <status|doctor> [--json] [--dry-run]\n\n  status   Состояние системы и доступность наблюдений\n  doctor   Пассивная проверка ОС, утилит и файлов WebKitGTK на CachyOS\n\nКоды: 0 — отчёт готов, 2 — ошибка аргументов, 3 — ограниченная диагностика.";
 
@@ -31,6 +33,36 @@ fn root_fs_line(sample: Option<&RootFsObservation>) -> String {
         ),
         None => "ФС /: нет данных".into(),
     }
+}
+
+fn network_lines(sample: Option<&NetworkIoObservation>) -> String {
+    let Some(s) = sample else {
+        return "Трафик сети: нет данных".into();
+    };
+    let mut text = format!(
+        "Трафик сети за {} мс · {} · {}",
+        s.interval_ms, s.source, s.observed_at_utc
+    );
+    if s.interfaces.is_empty() {
+        text.push_str("\n  Нет интерфейсов");
+    }
+    for dev in &s.interfaces {
+        let scope = if dev.name == "lo" {
+            " (локальная петля)"
+        } else {
+            ""
+        };
+        match &dev.rates {
+            Some(r) => write!(
+                text,
+                "\n  {}{}: приём {:.2} Б/с · передача {:.2} Б/с",
+                dev.name, scope, r.rx_bytes_per_sec, r.tx_bytes_per_sec
+            ),
+            None => write!(text, "\n  {}{}: нет данных за интервал", dev.name, scope),
+        }
+        .expect("writing to String");
+    }
+    text
 }
 
 fn main() -> ExitCode {
@@ -65,7 +97,7 @@ fn main() -> ExitCode {
                 );
             } else {
                 println!(
-                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
+                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
                     match (r.cachyos, r.os_id.as_deref()) {
                         (Some(true), Some("arch")) => "CachyOS (ID=arch)",
                         (None, Some("arch")) => "arch (CachyOS не подтверждена)",
@@ -73,7 +105,8 @@ fn main() -> ExitCode {
                     },
                     cpu_line(r.cpu.as_ref()),
                     ram_line(r.ram.as_ref()),
-                    root_fs_line(r.root_fs.as_ref())
+                    root_fs_line(r.root_fs.as_ref()),
+                    network_lines(r.network_io.as_ref())
                 );
             }
             ExitCode::SUCCESS
@@ -129,6 +162,44 @@ mod tests {
             "CPU: 0.0 % за 637 мс · /proc/stat · 2026-11-20T10:00:00.123Z"
         );
         assert_eq!(cpu_line(None), "CPU: нет данных");
+    }
+
+    #[test]
+    fn network_text_distinguishes_unavailable_no_interface_and_idle() {
+        use meshpilot_core::{InterfaceIo, TransferRates};
+        assert_eq!(network_lines(None), "Трафик сети: нет данных");
+        let mut n = NetworkIoObservation {
+            interfaces: vec![],
+            interval_ms: 625,
+            source: "/proc/net/dev",
+            observed_at_utc: "1970-01-01T00:00:01.234Z".into(),
+        };
+        let header = "Трафик сети за 625 мс · /proc/net/dev · 1970-01-01T00:00:01.234Z";
+        assert_eq!(
+            network_lines(Some(&n)),
+            format!("{header}\n  Нет интерфейсов")
+        );
+        n.interfaces = vec![
+            InterfaceIo {
+                name: "eth0".into(),
+                rates: None,
+            },
+            InterfaceIo {
+                name: "lo".into(),
+                rates: Some(TransferRates {
+                    rx_delta_bytes: 0,
+                    tx_delta_bytes: 1,
+                    rx_bytes_per_sec: 0.0,
+                    tx_bytes_per_sec: 1.6,
+                }),
+            },
+        ];
+        assert_eq!(
+            network_lines(Some(&n)),
+            format!(
+                "{header}\n  eth0: нет данных за интервал\n  lo (локальная петля): приём 0.00 Б/с · передача 1.60 Б/с"
+            )
+        );
     }
 
     #[test]

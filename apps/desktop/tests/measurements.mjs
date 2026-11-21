@@ -12,6 +12,7 @@ export async function testSnapshotCards(browser, origin) {
     const cpu = { busy_ticks: 3, total_ticks: 8, usage_percent: 37.5, interval_ms: 637, source: "/proc/stat", observed_at_utc };
     const disk = { used_bytes: 1.25 * 2 ** 30, total_bytes: 4 * 2 ** 30, available_bytes: 2 * 2 ** 30, source: "statvfs(/)", observed_at_utc };
     const replies = {
+      net: [{ source: "/proc/net/dev", observed_at_utc, interval_ms: 500, interfaces: [] }],
       disk: [disk, { ...disk, used_bytes: 0, available_bytes: 0 }, null,
         { ...disk, available_bytes: disk.total_bytes - disk.used_bytes + 1 },
         { ...disk, available_bytes: -1 }, { ...disk, used_bytes: 0.5 }, { ...disk, total_bytes: 2 ** 53 },
@@ -20,9 +21,9 @@ export async function testSnapshotCards(browser, origin) {
       cpu: [cpu, { ...cpu, busy_ticks: 0, usage_percent: 0 }, null, { ...cpu, usage_percent: 101 }, { ...cpu, interval_ms: 0 }, { ...cpu, total_ticks: 0 }, { ...cpu, usage_percent: 50 }, { ...cpu, source: "/wrong" }],
     };
     window.isTauri = true;
-    window.calls = { ram: [], cpu: [], disk: [] };
+    window.calls = { ram: [], cpu: [], disk: [], net: [] };
     window.__TAURI_INTERNALS__ = { invoke: async (cmd, args) => {
-      const key = { read_ram: "ram", read_cpu: "cpu", read_root_fs: "disk" }[cmd];
+      const key = { read_ram: "ram", read_cpu: "cpu", read_root_fs: "disk", read_network_io: "net" }[cmd];
       if (!key) throw new Error("Неизвестная команда");
       const n = window.calls[key].push([cmd, args]);
       if (key === "cpu" && n === 1) await new Promise(resolve => { window.finishCpu = resolve; });
@@ -54,7 +55,7 @@ export async function testSnapshotCards(browser, origin) {
     assert.equal(await labelledValue.evaluate(el => el === document.getElementById("cpu-value")), true, "цель aria-labelledby сохранилась после асинхронного чтения");
     const footer = page.locator("footer");
     assert.match(await footer.innerText(), /cpu 37,5 %.*ram 1,5 ГиБ/s);
-    assert.equal(await page.locator(".metric .no-data").count(), 1);
+    assert.equal(await page.locator(".metric .no-data").count(), 0);
     assert.equal(await page.getByText("Нет истории измерений", { exact: true }).count(), 1);
     for (const width of [1281, 1061, 800, 640]) {
       await page.setViewportSize({ width, height: 900 });
@@ -98,6 +99,7 @@ export async function testSnapshotCards(browser, origin) {
       assert.equal(await page.locator(".donut-used, .donut-available, .donut-panel time").count(), 0);
     }
     assert.deepEqual(await page.evaluate(() => window.calls.disk), Array.from({ length: 11 }, () => ["read_root_fs", {}]));
+    assert.deepEqual(await page.evaluate(() => window.calls.net), [["read_network_io", {}]]);
     assert.deepEqual(errors, []);
     console.log("CPU/RAM/ФС /: источник, UTC, единицы, интервал CPU, место для пользователя, ноль, отказ и независимое обновление: ОК");
   } finally { await page.close(); }

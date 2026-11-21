@@ -109,9 +109,13 @@ h1 { font-size: 30px; line-height: 1.24; letter-spacing: -1.2px; font-weight: 64
 .disk .metric-track i { background: var(--amber); }
 .disk .sample-label { color: #edb14b; }
 .cpu .sample-label { color: var(--lavender); }
-.net-values, .net-values>span { display: flex; align-items: baseline; gap: 5px; }
-.net-values { gap: 16px; }
-.net-values svg { color: var(--cyan); }
+.net .sample-label, .net-reading strong { color: #40c9e0; }
+.net-choice, .net-reading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 9px; }
+.net-choice { font-size: 10px; color: var(--secondary); }
+.net-choice select { background: var(--side); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font: 11px var(--mono); max-width: 100%; }
+.net-choice select:focus-visible { outline: 2px solid var(--lavender); }
+.net-reading { font-size: 11px; margin: 3px 0; }
+.net-reading strong { font-family: var(--mono); white-space: nowrap; }
 .analysis-grid { display: grid; grid-template-columns: minmax(0,1.85fr) minmax(0,1fr); gap: 16px; margin-top: 16px; }
 .panel-heading { justify-content: space-between; align-items: flex-start; gap: 8px; }
 .section-label { gap: 6px; color: #9b92b2; font-size: 9px; letter-spacing: 1.35px; }

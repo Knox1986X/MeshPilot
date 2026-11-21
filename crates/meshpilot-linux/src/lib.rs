@@ -1,8 +1,11 @@
 //! Пассивные пробы фиксированных источников Linux. Внешние программы не запускаются.
 mod cpu;
+mod interval;
+mod network_io;
 mod ram;
 mod root_fs;
 pub use cpu::cpu_snapshot;
+pub use network_io::network_io_snapshot;
 pub use ram::ram_snapshot;
 pub use root_fs::root_fs_snapshot;
 
@@ -99,8 +102,11 @@ fn platform() -> Platform {
 
 pub fn status() -> StatusReport {
     let platform = platform();
+    let (cpu, network_io) =
+        interval::pair::<cpu::Counters, network_io::Counters>(std::thread::sleep);
     StatusReport {
-        cpu: cpu_snapshot(),
+        cpu,
+        network_io,
         ram: ram_snapshot(),
         root_fs: root_fs_snapshot(),
         ..StatusReport::unmeasured(platform.id, platform.cachyos)

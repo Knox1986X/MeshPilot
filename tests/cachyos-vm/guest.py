@@ -14,6 +14,8 @@ from pathlib import Path
 from checks import (Failure, check, proc_cpu_ticks, verify_cli_cpu, verify_cpu_card,
                     verify_cli_ram, verify_ram_card, verify_cli_root_fs, verify_root_fs_card)
 
+from net_checks import net_ticks, verify_cli_net, verify_loopback_card, verify_shared_window
+
 MEDIA = Path("/run/meshpilot-smoke")
 
 
@@ -109,6 +111,7 @@ def run_checks(emit, home):
 
     # Только неизменившиеся данные реального образа. Не подменять os-release в тесте.
     raw_id = platform.freedesktop_os_release()["ID"]
+    net_before = net_ticks()
     before = proc_cpu_ticks()
     mono = time.monotonic_ns()
     started = time.time_ns()
@@ -118,6 +121,8 @@ def run_checks(emit, home):
     elapsed_ms = (time.monotonic_ns() - mono) // 1_000_000
     after = proc_cpu_ticks()
     verify_cli_cpu(status.get("cpu"), started, elapsed_ms, before, after)
+    verify_cli_net(status.get("network_io"), started, elapsed_ms, net_before, net_ticks())
+    verify_shared_window(status["cpu"], status["network_io"])
     check(status["read_only"] is True and status["os_id"] == raw_id and status["cachyos"] is True, "CLI_PLATFORM")
     check(all(status[k] is None for k in ("online", "dns", "updatable_apps", "security_fixes", "last_success_utc")), "CLI_OBSERVATIONS")
     verify_cli_ram(status.get("ram"), started)
@@ -145,19 +150,20 @@ def run_checks(emit, home):
         check(match and os.path.samefile(match[1], Path("/usr/lib") / soname), "GUI_RUNTIME_PATH")
     check(session, "NO_GRAPHICAL_SESSION")
     env.update(GDK_BACKEND="x11", WEBKIT_DISABLE_DMABUF_RENDERER="1", LIBGL_ALWAYS_SOFTWARE="1")
+    net_before = net_ticks()
     started = int(time.time())
     mono = time.monotonic_ns()
     observer_error = None
     try:
-        window, window_bounds = observed([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "metric-name"], timeout=140)
+        window, window_bounds = observed([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "metric-name"], timeout=165)
         window.check_returncode()
         output = window.stdout
     except subprocess.CalledProcessError as err:
-        if err.returncode not in (42, 43, 44):
+        if err.returncode not in (42, 43, 44, 45):
             raise Failure("GUI_WINDOW") from err
         codes = {"GUI_METRIC_" + suffix for suffix in ("BUS", "APP", "TREE", "EMPTY", "IPC", "INVALID", "UNAVAILABLE", "PENDING", "PARTIAL")}
         reason = next((line for line in err.stderr.splitlines() if line in codes), "GUI_METRIC_OBSERVER")
-        observer_error = ({42: "RAM", 43: "CPU", 44: "FS"}[err.returncode], reason)
+        observer_error = ({42: "RAM", 43: "CPU", 44: "FS", 45: "NET"}[err.returncode], reason)
         output = err.stdout
     except subprocess.SubprocessError as err:
         raise Failure("GUI_WINDOW") from err
@@ -176,6 +182,8 @@ def run_checks(emit, home):
     emit("CPU_CARD")
     verify_root_fs_card(label("FS", "Занято на /"), started, *window_bounds)
     emit("ROOT_FS_CARD")
+    verify_loopback_card(label("NET", "Трафик сети"), started, (time.monotonic_ns() - mono) // 1_000_000, net_before, net_ticks())
+    emit("NET_IO_CARD")
 
 
 def main():

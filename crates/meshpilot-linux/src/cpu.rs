@@ -1,22 +1,18 @@
 //! Средняя доля не простаивавшего CPU по агрегату ядра, не load average или нагрузка процесса.
-use crate::utc_stamp;
+use crate::interval::{self, Probe, Window};
 use meshpilot_core::CpuObservation;
 use std::{
     fs::File,
     io::{BufRead, BufReader, Read},
-    thread,
-    time::{Duration, Instant, SystemTime},
 };
 
 const SOURCE: &str = "/proc/stat";
-const SAMPLE_GAP: Duration = Duration::from_millis(500);
-const MAX_INTERVAL: Duration = Duration::from_secs(5);
 const MAX_LINE: usize = 512;
 
-struct Counters(Vec<u64>);
+pub(super) struct Counters(Vec<u64>);
 
 impl Counters {
-    fn read(reader: impl Read) -> Option<Self> {
+    fn parse(reader: impl Read) -> Option<Self> {
         // В procfs агрегат всегда первый. Не читать длинные списки CPU и IRQ.
         let mut line = String::new();
         BufReader::new(reader.take(MAX_LINE as u64 + 1))
@@ -63,37 +59,27 @@ impl Counters {
     }
 }
 
-fn observe(
-    mut sample: impl FnMut() -> Option<(Counters, Instant)>,
-    wait: impl FnOnce(Duration),
-    now: impl FnOnce() -> SystemTime,
-) -> Option<CpuObservation> {
-    let (first, start) = sample()?;
-    wait(SAMPLE_GAP);
-    let (second, end) = sample()?;
-    let observed_at_utc = utc_stamp(now())?;
-    let interval = end.checked_duration_since(start)?;
-    if !(SAMPLE_GAP..=MAX_INTERVAL).contains(&interval) {
-        return None;
+impl Probe for Counters {
+    type Report = CpuObservation;
+    fn read() -> Option<Self> {
+        Self::parse(File::open(SOURCE).ok()?)
     }
-    let (busy_ticks, total_ticks) = first.deltas(&second)?;
-    Some(CpuObservation {
-        usage_percent: 100.0 * (busy_ticks as f64 / total_ticks as f64),
-        busy_ticks,
-        total_ticks,
-        interval_ms: interval.as_millis().try_into().ok()?,
-        source: SOURCE,
-        observed_at_utc,
-    })
+    fn report(self, next: Self, window: Window) -> Option<Self::Report> {
+        let (busy_ticks, total_ticks) = self.deltas(&next)?;
+        Some(CpuObservation {
+            usage_percent: 100.0 * (busy_ticks as f64 / total_ticks as f64),
+            busy_ticks,
+            total_ticks,
+            interval_ms: window.ms,
+            source: SOURCE,
+            observed_at_utc: window.utc,
+        })
+    }
 }
 
 /// Два ограниченных чтения и одна короткая пауза. Не вызывать на потоке окна.
 pub fn cpu_snapshot() -> Option<CpuObservation> {
-    observe(
-        || Some((Counters::read(File::open(SOURCE).ok()?)?, Instant::now())),
-        thread::sleep,
-        SystemTime::now,
-    )
+    interval::single::<Counters>()
 }
 
 #[cfg(test)]

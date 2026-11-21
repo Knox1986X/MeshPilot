@@ -60,6 +60,19 @@ async fn read_cpu() -> Option<meshpilot_core::CpuObservation> {
     }
 }
 
+#[tauri::command]
+async fn read_network_io() -> Option<meshpilot_core::NetworkIoObservation> {
+    #[cfg(target_os = "linux")]
+    {
+        static IN_FLIGHT: Mutex<()> = Mutex::const_new(());
+        snapshot_in_worker(&IN_FLIGHT, meshpilot_linux::network_io_snapshot).await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
 fn main() -> ExitCode {
     #[cfg(target_os = "linux")]
     if rustix::process::geteuid().is_root() {
@@ -68,7 +81,12 @@ fn main() -> ExitCode {
     }
 
     match tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![read_ram, read_cpu, read_root_fs])
+        .invoke_handler(tauri::generate_handler![
+            read_ram,
+            read_cpu,
+            read_root_fs,
+            read_network_io
+        ])
         .run(tauri::generate_context!())
     {
         Ok(()) => ExitCode::SUCCESS,

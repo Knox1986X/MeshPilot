@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Cpu, HardDrive, MemoryStick, RefreshCw } from "@lucide/svelte";
   import { isTauri } from "@tauri-apps/api/core";
-  import { formatBytes, formatPercent, formatUtc, type ReadIssue, type CpuObservation, type RamObservation, type RootFsObservation } from "./measurements";
+  import { formatBytes, formatPercent, formatUtc, readHint, type ReadIssue, type CpuObservation, type RamObservation, type RootFsObservation } from "./measurements";
   type Props = { issue: ReadIssue | null; pending: boolean; refresh: () => void } & (
     { kind: "disk"; sample: RootFsObservation | null } | { kind: "ram"; sample: RamObservation | null } | { kind: "cpu"; sample: CpuObservation | null }
   );
@@ -12,8 +12,7 @@
     cpu: { title: "Загрузка CPU", source: "/proc/stat", icon: Cpu, refresh: "Обновить замер CPU" },
   };
   let metric = $derived(config[props.kind]);
-  const issues = { browser: "В браузере источник недоступен", ipc: "Канал недоступен", invalid: "Некорректный ответ", unavailable: "Нет достоверного замера" };
-  let hint = $derived(!isTauri() ? issues.browser : `${props.pending ? "Чтение" : issues[props.issue ?? "unavailable"]}: ${metric.source}`);
+  let hint = $derived(readHint(props.issue, props.pending, metric.source));
   let reading = $derived.by(() => {
     if (!props.sample) return null;
     if (props.kind === "cpu") return { value: formatPercent(props.sample.usage_percent), detail: `за ${props.sample.interval_ms} мс`, fill: props.sample.usage_percent };

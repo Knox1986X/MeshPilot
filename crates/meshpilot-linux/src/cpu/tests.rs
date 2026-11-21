@@ -1,12 +1,13 @@
 use super::*;
-use std::time::UNIX_EPOCH;
+use crate::interval::GAP;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const FIRST: &str = "cpu  100 50 30 400 10 3 4 2 10 4\n";
 // user +8, nice +2, system +4, idle +15, iowait +5, irq +2, softirq +1, steal +3.
 const SECOND: &str = "cpu  108 52 34 415 15 5 5 5 16 6\ncpu0 999\n";
 
 fn counts(line: &str) -> Option<Counters> {
-    Counters::read(line.as_bytes())
+    Counters::parse(line.as_bytes())
 }
 
 fn with_samples(
@@ -16,15 +17,7 @@ fn with_samples(
     wall: SystemTime,
 ) -> Option<CpuObservation> {
     let t = Instant::now();
-    let mut samples = [(first, t), (second, t + duration)].into_iter();
-    observe(
-        || {
-            let (row, at) = samples.next()?;
-            Some((counts(row)?, at))
-        },
-        |d| assert_eq!(d, SAMPLE_GAP),
-        || wall,
-    )
+    counts(first)?.report(counts(second)?, Window::new(t, t + duration, wall)?)
 }
 
 #[test]
@@ -51,7 +44,7 @@ fn true_idle_and_fully_busy_are_both_measurements() {
         ("cpu 1 0 0 3 1 0 0 0\n", 0.0),
         ("cpu 2 0 0 1 0 0 0 1\n", 100.0),
     ] {
-        let r = with_samples("cpu 1 0 0 1 0 0 0 0\n", second, SAMPLE_GAP, UNIX_EPOCH).unwrap();
+        let r = with_samples("cpu 1 0 0 1 0 0 0 0\n", second, GAP, UNIX_EPOCH).unwrap();
         assert_eq!(r.usage_percent, pct);
     }
 }
@@ -73,7 +66,7 @@ fn requires_complete_bounded_first_aggregate_only() {
     }
     assert!(counts(&format!("cpu{}1 2 3 4 5 6 7 8\n", " ".repeat(MAX_LINE))).is_none());
     assert!(counts(&format!("{FIRST}{}", "x".repeat(65537))).is_some());
-    assert!(Counters::read(&b"cpu 1 2 3 4 5 6 7 \xff\n"[..]).is_none());
+    assert!(Counters::parse(&b"cpu 1 2 3 4 5 6 7 \xff\n"[..]).is_none());
 }
 
 #[test]
@@ -87,7 +80,7 @@ fn regression_changed_layout_no_ticks_and_overflow_are_not_idle() {
         "cpu 9007199254741092 50 30 400 10 3 4 2 10 4\n",
     ] {
         assert!(
-            with_samples(FIRST, second, SAMPLE_GAP, UNIX_EPOCH).is_none(),
+            with_samples(FIRST, second, GAP, UNIX_EPOCH).is_none(),
             "{second}"
         );
     }
@@ -95,38 +88,4 @@ fn regression_changed_layout_no_ticks_and_overflow_are_not_idle() {
     let a = "cpu 18446744073709551615 1 0 10 0 0 0 0\n";
     let b = "cpu 18446744073709551615 1 0 11 0 0 0 0\n";
     assert_eq!(counts(a).unwrap().deltas(&counts(b).unwrap()), Some((0, 1)));
-}
-
-#[test]
-fn bad_interval_or_wall_clock_discards_the_sample() {
-    for gap in [
-        Duration::ZERO,
-        SAMPLE_GAP - Duration::from_nanos(1),
-        MAX_INTERVAL + Duration::from_nanos(1),
-    ] {
-        assert!(with_samples(FIRST, SECOND, gap, UNIX_EPOCH).is_none());
-    }
-    assert!(
-        with_samples(
-            FIRST,
-            SECOND,
-            SAMPLE_GAP,
-            UNIX_EPOCH - Duration::from_secs(1)
-        )
-        .is_none()
-    );
-}
-
-#[test]
-fn failed_read_at_either_end_is_unavailable() {
-    assert!(
-        observe(
-            || None,
-            |_| panic!("нет первого чтения — нет паузы"),
-            || UNIX_EPOCH
-        )
-        .is_none()
-    );
-    let mut first = Some((counts(FIRST).unwrap(), Instant::now()));
-    assert!(observe(|| first.take(), |_| (), || panic!("нет второй пробы")).is_none());
 }

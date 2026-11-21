@@ -1,12 +1,13 @@
 <script lang="ts">
-  import { Cpu, MemoryStick, RefreshCw } from "@lucide/svelte";
+  import { Cpu, HardDrive, MemoryStick, RefreshCw } from "@lucide/svelte";
   import { isTauri } from "@tauri-apps/api/core";
-  import { formatBytes, formatPercent, type ReadIssue, type CpuObservation, type RamObservation } from "./measurements";
+  import { formatBytes, formatPercent, formatUtc, type ReadIssue, type CpuObservation, type RamObservation, type RootFsObservation } from "./measurements";
   type Props = { issue: ReadIssue | null; pending: boolean; refresh: () => void } & (
-    { kind: "ram"; sample: RamObservation | null } | { kind: "cpu"; sample: CpuObservation | null }
+    { kind: "disk"; sample: RootFsObservation | null } | { kind: "ram"; sample: RamObservation | null } | { kind: "cpu"; sample: CpuObservation | null }
   );
   let props: Props = $props();
   const config = {
+    disk: { title: "Занято на /", source: "statvfs(/)", icon: HardDrive, refresh: "Обновить снимок ФС /" },
     ram: { title: "Занято RAM", source: "/proc/meminfo", icon: MemoryStick, refresh: "Обновить снимок RAM" },
     cpu: { title: "Загрузка CPU", source: "/proc/stat", icon: Cpu, refresh: "Обновить замер CPU" },
   };
@@ -19,7 +20,7 @@
     return { value: formatBytes(props.sample.used_bytes), detail: `из ${formatBytes(props.sample.total_bytes)}`, fill: props.sample.used_bytes / props.sample.total_bytes * 100 };
   });
 </script>
-<article class={"panel metric snapshot " + props.kind} aria-labelledby={`${props.kind}-heading ${props.kind}-value ${props.kind}-meta`} aria-busy={props.pending}>
+<article class={"panel metric snapshot " + props.kind} aria-labelledby={`${props.kind}-heading ${props.kind}-value ${props.kind === "disk" ? "disk-available " : ""}${props.kind}-meta`} aria-busy={props.pending}>
   <div class="metric-head">
     <span class="metric-icon"><metric.icon size={20} /></span><h3 id={`${props.kind}-heading`}>{metric.title}</h3>
     {#if props.pending}<span class="sample-label">замер…</span>{:else if reading}<span class="sample-label">снимок</span>{:else}<span class="no-data">нет данных</span>{/if}
@@ -28,8 +29,9 @@
   <div class={reading ? "sample-reading" : "metric-value"} id={`${props.kind}-value`}>
     {#if reading}<strong>{reading.value}</strong> <small>{reading.detail}</small>{:else}—{/if}
   </div>
+  {#if props.kind === "disk"}<div id="disk-available" class="sample-available">{#if props.sample}Доступно пользователю: {formatBytes(props.sample.available_bytes)}{/if}</div>{/if}
   <div class:sample-meta={!!props.sample} class="metric-sub" id={`${props.kind}-meta`}>
-    {#if props.sample}<code>{props.sample.source}</code> <time datetime={props.sample.observed_at_utc} title={props.sample.observed_at_utc}>{props.sample.observed_at_utc.slice(0, 10)} {props.sample.observed_at_utc.slice(11, 19)} UTC</time>{:else}{hint}{/if}
+    {#if props.sample}<code>{props.sample.source}</code> <time datetime={props.sample.observed_at_utc} title={props.sample.observed_at_utc}>{formatUtc(props.sample.observed_at_utc)}</time>{:else}{hint}{/if}
   </div>
   <div class="metric-track" aria-hidden="true">{#if reading}<i style:width={`${reading.fill}%`}></i>{/if}</div>
 </article>

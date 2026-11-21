@@ -39,6 +39,8 @@ try {
     if (width === 1920) assert.equal(layout.chart, layout.donut);
     assert.equal(await page.locator(".metric .no-data").filter({ hasText: "нет данных" }).count(), 4);
     for (const text of await page.locator(".metric-value").allTextContents()) { assert.match(text, /—/); assert.doesNotMatch(text, /\d|NaN/); }
+    assert.equal(await page.locator(".donut-used, .donut-available").count(), 0);
+    assert.deepEqual(await page.locator(".disk-legend dd").allTextContents(), ["—", "—", "—", "—"]);
     if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/meshpilot-${width}.png` });
     console.log(`${width}px: ${cols} колонки, без перекрытия, нет подставных измерений`);
   }

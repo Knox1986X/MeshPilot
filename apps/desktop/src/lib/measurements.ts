@@ -1,8 +1,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
-export type Metric = "cpu" | "ram";
+export type Metric = "cpu" | "ram" | "disk";
 
-/** Те же объекты, что status --json → cpu и ram. Браузер не является источником метрик. */
+/** Те же объекты, что status --json → cpu, ram и root_fs. Браузер не является источником метрик. */
 export interface CpuObservation {
   usage_percent: number;
   busy_ticks: number;
@@ -15,6 +15,14 @@ export interface RamObservation {
   used_bytes: number;
   total_bytes: number;
   source: "/proc/meminfo";
+  observed_at_utc: string;
+}
+
+export interface RootFsObservation {
+  used_bytes: number;
+  total_bytes: number;
+  available_bytes: number;
+  source: "statvfs(/)";
   observed_at_utc: string;
 }
 
@@ -31,6 +39,13 @@ function validRam(value: unknown): value is RamObservation {
   return r.source === "/proc/meminfo" && utcStamp(r.observed_at_utc) && whole(r.used_bytes)
     && whole(r.total_bytes) && r.total_bytes > 0 && r.used_bytes <= r.total_bytes;
 }
+function validRootFs(value: unknown): value is RootFsObservation {
+  if (!value || typeof value !== "object") return false;
+  const s = value as Partial<RootFsObservation>;
+  return s.source === "statvfs(/)" && utcStamp(s.observed_at_utc)
+    && whole(s.total_bytes) && s.total_bytes > 0 && whole(s.used_bytes) && s.used_bytes <= s.total_bytes
+    && whole(s.available_bytes) && s.available_bytes <= s.total_bytes - s.used_bytes;
+}
 function validCpu(value: unknown): value is CpuObservation {
   if (!value || typeof value !== "object") return false;
   const c = value as Partial<CpuObservation>;
@@ -42,7 +57,7 @@ function validCpu(value: unknown): value is CpuObservation {
 }
 export type ReadIssue = "browser" | "unavailable" | "invalid" | "ipc";
 export type Reading<T> = { value: T; issue: null } | { value: null; issue: ReadIssue };
-async function read<T>(cmd: "read_ram" | "read_cpu", valid: (value: unknown) => value is T): Promise<Reading<T>> {
+async function read<T>(cmd: "read_ram" | "read_cpu" | "read_root_fs", valid: (value: unknown) => value is T): Promise<Reading<T>> {
   if (!isTauri()) return { value: null, issue: "browser" };
   try {
     const result = await invoke<unknown>(cmd);
@@ -51,7 +66,11 @@ async function read<T>(cmd: "read_ram" | "read_cpu", valid: (value: unknown) => 
   } catch { return { value: null, issue: "ipc" }; }
 }
 export const readCpu = () => read("read_cpu", validCpu);
+export const readRootFs = () => read("read_root_fs", validRootFs);
 export const readRam = () => read("read_ram", validRam);
+
+// UTC из проверенного ответа, не текущее время WebView.
+export function formatUtc(stamp: string): string { return `${stamp.slice(0, 10)} ${stamp.slice(11, 19)} UTC`; }
 
 const units = ["Б", "КиБ", "МиБ", "ГиБ", "ТиБ", "ПиБ"] as const;
 const decimal = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });

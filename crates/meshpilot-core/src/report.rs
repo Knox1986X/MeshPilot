@@ -12,6 +12,16 @@ pub struct RamObservation {
     pub observed_at_utc: String,
 }
 
+/// Занято и доступно обычному пользователю на ФС, содержащей `/`, не на всём устройстве.
+#[derive(Debug, Serialize)]
+pub struct RootFsObservation {
+    pub used_bytes: u64,
+    pub total_bytes: u64,
+    pub available_bytes: u64,
+    pub source: &'static str,
+    pub observed_at_utc: String,
+}
+
 /// Загрузка по двум чтениям; интервал монотонный, UTC относится к концу замера.
 #[derive(Debug, Serialize)]
 pub struct CpuObservation {
@@ -33,6 +43,7 @@ pub struct StatusReport {
     /// None означает отсутствие наблюдения, а не отрицательный результат.
     pub cpu: Option<CpuObservation>,
     pub ram: Option<RamObservation>,
+    pub root_fs: Option<RootFsObservation>,
     pub online: Option<bool>,
     pub dns: Option<String>,
     pub updatable_apps: Option<u32>,
@@ -49,6 +60,7 @@ impl StatusReport {
             cachyos,
             cpu: None,
             ram: None,
+            root_fs: None,
             online: None,
             dns: None,
             updatable_apps: None,
@@ -99,6 +111,7 @@ mod tests {
         let json = serde_json::to_value(StatusReport::unmeasured(None, None)).unwrap();
         assert_eq!(json["schema_version"], 1);
         assert_eq!(json.get("cpu"), Some(&serde_json::Value::Null));
+        assert_eq!(json.get("root_fs"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("ram"), Some(&serde_json::Value::Null));
     }
 }

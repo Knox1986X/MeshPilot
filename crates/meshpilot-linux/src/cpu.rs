@@ -57,7 +57,7 @@ impl Counters {
             } // idle и iowait — простой.
         }
         // Не передавать lossy integers через JSON в WebView.
-        (1..=(1 << 53) - 1)
+        (1..=crate::MAX_SAFE_INTEGER)
             .contains(&total)
             .then_some((busy, total))
     }

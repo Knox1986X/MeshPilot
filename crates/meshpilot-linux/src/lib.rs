@@ -1,8 +1,10 @@
-//! Пассивные пробы фиксированных системных файлов. Внешние программы не запускаются.
+//! Пассивные пробы фиксированных источников Linux. Внешние программы не запускаются.
 mod cpu;
 mod ram;
+mod root_fs;
 pub use cpu::cpu_snapshot;
 pub use ram::ram_snapshot;
+pub use root_fs::root_fs_snapshot;
 
 use meshpilot_core::{Check, DoctorReport, Finding, SCHEMA_VERSION, StatusReport};
 use std::{
@@ -11,6 +13,9 @@ use std::{
     path::Path,
     time::SystemTime,
 };
+
+// Целые счётчики должны оставаться точными после передачи JSON в WebView.
+const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 
 // os-release и маркер дистрибутива — данные. Не source, без расширения переменных.
 fn field<'a>(text: &'a str, key: &str) -> Option<&'a str> {
@@ -97,6 +102,7 @@ pub fn status() -> StatusReport {
     StatusReport {
         cpu: cpu_snapshot(),
         ram: ram_snapshot(),
+        root_fs: root_fs_snapshot(),
         ..StatusReport::unmeasured(platform.id, platform.cachyos)
     }
 }

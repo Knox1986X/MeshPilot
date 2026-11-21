@@ -40,6 +40,7 @@ int main(int argc, char **argv) {
     if (argc != 3) return 2;
     if (strcmp(argv[2], "ram") == 0) { heading = "Занято RAM"; source = "/proc/meminfo"; }
     else if (strcmp(argv[2], "cpu") == 0) { heading = "Загрузка CPU"; source = "/proc/stat"; }
+    else if (strcmp(argv[2], "root_fs") == 0) { heading = "Занято на /"; source = "statvfs(/)"; }
     else return 2;
     guint pid = (guint)g_ascii_strtoull(argv[1], NULL, 10);
     if (!pid || atspi_init() != 0) { fputs("GUI_METRIC_BUS\n", stderr); return 1; }

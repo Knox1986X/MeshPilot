@@ -10,14 +10,19 @@ export async function testSnapshotCards(browser, origin) {
     const observed_at_utc = "2026-11-20T12:34:56.789Z";
     const ram = { used_bytes: 1.5 * 2 ** 30, total_bytes: 8 * 2 ** 30, source: "/proc/meminfo", observed_at_utc };
     const cpu = { busy_ticks: 3, total_ticks: 8, usage_percent: 37.5, interval_ms: 637, source: "/proc/stat", observed_at_utc };
+    const disk = { used_bytes: 1.25 * 2 ** 30, total_bytes: 4 * 2 ** 30, available_bytes: 2 * 2 ** 30, source: "statvfs(/)", observed_at_utc };
     const replies = {
+      disk: [disk, { ...disk, used_bytes: 0, available_bytes: 0 }, null,
+        { ...disk, available_bytes: disk.total_bytes - disk.used_bytes + 1 },
+        { ...disk, available_bytes: -1 }, { ...disk, used_bytes: 0.5 }, { ...disk, total_bytes: 2 ** 53 },
+        { ...disk, source: "statvfs(/home)" }, { ...disk, observed_at_utc: "" }, { ...disk, available_bytes: undefined }],
       ram: [ram, { ...ram, used_bytes: 0 }, null, { ...ram, used_bytes: ram.total_bytes + 1 }, { ...ram, observed_at_utc: "2026-02-30T12:34:56.789Z" }],
       cpu: [cpu, { ...cpu, busy_ticks: 0, usage_percent: 0 }, null, { ...cpu, usage_percent: 101 }, { ...cpu, interval_ms: 0 }, { ...cpu, total_ticks: 0 }, { ...cpu, usage_percent: 50 }, { ...cpu, source: "/wrong" }],
     };
     window.isTauri = true;
-    window.calls = { ram: [], cpu: [] };
+    window.calls = { ram: [], cpu: [], disk: [] };
     window.__TAURI_INTERNALS__ = { invoke: async (cmd, args) => {
-      const key = { read_ram: "ram", read_cpu: "cpu" }[cmd];
+      const key = { read_ram: "ram", read_cpu: "cpu", read_root_fs: "disk" }[cmd];
       if (!key) throw new Error("Неизвестная команда");
       const n = window.calls[key].push([cmd, args]);
       if (key === "cpu" && n === 1) await new Promise(resolve => { window.finishCpu = resolve; });
@@ -34,7 +39,14 @@ export async function testSnapshotCards(browser, origin) {
       assert.equal(await card(kind).locator("time").getAttribute("datetime"), "2026-11-20T12:34:56.789Z");
     };
     await reading("Занято RAM 1,5 ГиБ из 8 ГиБ /proc/meminfo 2026-11-20 12:34:56 UTC", "ram");
-    assert.equal(await button("cpu").isDisabled(), true, "ожидание CPU не задерживает RAM");
+    const diskLabel = "Занято на / 1,25 ГиБ из 4 ГиБ Доступно пользователю: 2 ГиБ statvfs(/) 2026-11-20 12:34:56 UTC";
+    await reading(diskLabel, "disk");
+    const legend = page.locator(".disk-legend dd");
+    assert.equal(await page.locator(".donut-panel time").getAttribute("datetime"), "2026-11-20T12:34:56.789Z");
+    assert.deepEqual(await legend.allTextContents(), ["1,25 ГиБ", "2 ГиБ", "768 МиБ", "4 ГиБ"]);
+    assert.equal(await page.locator(".donut-used").getAttribute("stroke-dasharray"), "31.25 100");
+    assert.equal(await page.locator(".donut-available").getAttribute("stroke-dasharray"), "50 100");
+    assert.equal(await button("cpu").isDisabled(), true, "ожидание CPU не задерживает RAM и ФС");
     assert.equal(await card("cpu").getAttribute("aria-busy"), "true");
     const labelledValue = await card("cpu").locator("#cpu-value").elementHandle();
     await page.evaluate(() => window.finishCpu());
@@ -42,11 +54,15 @@ export async function testSnapshotCards(browser, origin) {
     assert.equal(await labelledValue.evaluate(el => el === document.getElementById("cpu-value")), true, "цель aria-labelledby сохранилась после асинхронного чтения");
     const footer = page.locator("footer");
     assert.match(await footer.innerText(), /cpu 37,5 %.*ram 1,5 ГиБ/s);
-    assert.equal(await page.locator(".metric .no-data").count(), 2);
+    assert.equal(await page.locator(".metric .no-data").count(), 1);
     assert.equal(await page.getByText("Нет истории измерений", { exact: true }).count(), 1);
-    for (const width of [1281, 800, 640]) {
+    for (const width of [1281, 1061, 800, 640]) {
       await page.setViewportSize({ width, height: 900 });
-      for (const kind of ["ram", "cpu"]) assert.ok(await card(kind).evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight), `${kind}: ${width}px`);
+      assert.ok(await page.locator(".donut-panel").evaluate(el => {
+        const box = s => el.querySelector(s).getBoundingClientRect();
+        return el.scrollWidth <= el.clientWidth && box(".panel-heading").bottom <= box(".disk-legend").top && box(".disk-legend").bottom <= box(".chart-foot").top;
+      }), `легенда ФС и подписи: ${width}px`);
+      for (const kind of ["ram", "cpu", "disk"]) assert.ok(await card(kind).evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight), `${kind}: ${width}px`);
     }
     for (const [kind, zero, calls] of [["cpu", "0 %", 9], ["ram", "0 Б", 6]]) {
       await button(kind).click();
@@ -65,7 +81,24 @@ export async function testSnapshotCards(browser, origin) {
       if (kind === "cpu") assert.match(await footer.innerText(), /ram 1,5 ГиБ/, "отказ CPU не стирает RAM");
       assert.deepEqual(await page.evaluate(k => window.calls[k], kind), Array.from({ length: calls }, () => [`read_${kind}`, {}]));
     }
+    // Отказы и ручные чтения RAM/CPU не перезапрашивали и не стирали снимок ФС.
+    await reading(diskLabel, "disk");
+    assert.equal(await page.evaluate(() => window.calls.disk.length), 1);
+    await button("disk").click();
+    await reading("Занято на / 0 Б из 4 ГиБ Доступно пользователю: 0 Б statvfs(/) 2026-11-20 12:34:56 UTC", "disk");
+    assert.deepEqual(await legend.allTextContents(), ["0 Б", "0 Б", "4 ГиБ", "4 ГиБ"]);
+    for (let n = 3; n <= 11; n++) {
+      await button("disk").click();
+      const expected = n === 3 ? "Нет достоверного замера" : n === 11 ? "Канал недоступен" : "Некорректный ответ";
+      await card("disk").getByText(`${expected}: statvfs(/)`, { exact: true }).waitFor();
+      assert.equal(await card("disk").locator("time").count(), 0);
+      assert.equal(await card("disk").locator("#disk-value").innerText(), "—");
+      assert.equal(await card("disk").locator("#disk-available").innerText(), "");
+      assert.deepEqual(await legend.allTextContents(), ["—", "—", "—", "—"]);
+      assert.equal(await page.locator(".donut-used, .donut-available, .donut-panel time").count(), 0);
+    }
+    assert.deepEqual(await page.evaluate(() => window.calls.disk), Array.from({ length: 11 }, () => ["read_root_fs", {}]));
     assert.deepEqual(errors, []);
-    console.log("CPU/RAM: источник, UTC, единицы, фактический интервал CPU, ноль, отказ и независимое обновление карточек: ОК");
+    console.log("CPU/RAM/ФС /: источник, UTC, единицы, интервал CPU, место для пользователя, ноль, отказ и независимое обновление: ОК");
   } finally { await page.close(); }
 }

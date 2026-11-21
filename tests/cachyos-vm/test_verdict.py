@@ -29,6 +29,10 @@ class Verdict(unittest.TestCase):
         with self.assertRaises(ValueError):
             verdict(self.trace(["GUEST", "CLI", "SESSION", "WINDOW", "RAM_CARD", "UNCHANGED", "PASS"]), "current", 0)
 
+    def test_previous_cpu_ram_pass_is_not_root_fs_evidence(self):
+        with self.assertRaises(ValueError):
+            verdict(self.trace(["GUEST", "CLI", "SESSION", "WINDOW", "RAM_CARD", "CPU_CARD", "UNCHANGED", "PASS"]), "current", 0)
+
     def test_replay_or_timeout_is_not_success(self):
         for nonce, rc in [("previous", 0), ("current", 124)]:
             with self.assertRaises(ValueError):

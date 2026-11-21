@@ -15,21 +15,44 @@ fn read_ram() -> Option<meshpilot_core::RamObservation> {
     }
 }
 
+#[cfg(target_os = "linux")]
+use tauri::async_runtime::Mutex;
+
+#[cfg(target_os = "linux")]
+async fn snapshot_in_worker<T: Send + 'static>(
+    in_flight: &'static Mutex<()>,
+    read: fn() -> Option<T>,
+) -> Option<T> {
+    // Отдельный лимит на источник. Не блокировать окно и не копить запросы, если ФС медленная.
+    let guard = in_flight.try_lock().ok()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        read()
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+#[tauri::command]
+async fn read_root_fs() -> Option<meshpilot_core::RootFsObservation> {
+    #[cfg(target_os = "linux")]
+    {
+        static IN_FLIGHT: Mutex<()> = Mutex::const_new(());
+        snapshot_in_worker(&IN_FLIGHT, meshpilot_linux::root_fs_snapshot).await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
 #[tauri::command]
 async fn read_cpu() -> Option<meshpilot_core::CpuObservation> {
     #[cfg(target_os = "linux")]
     {
-        // Не блокируем UI или async executor. Даже прямые вызовы IPC не создают очередь замеров.
-        static IN_FLIGHT: tauri::async_runtime::Mutex<()> =
-            tauri::async_runtime::Mutex::const_new(());
-        let guard = IN_FLIGHT.try_lock().ok()?;
-        tauri::async_runtime::spawn_blocking(move || {
-            let _guard = guard;
-            meshpilot_linux::cpu_snapshot()
-        })
-        .await
-        .ok()
-        .flatten()
+        static IN_FLIGHT: Mutex<()> = Mutex::const_new(());
+        snapshot_in_worker(&IN_FLIGHT, meshpilot_linux::cpu_snapshot).await
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -45,7 +68,7 @@ fn main() -> ExitCode {
     }
 
     match tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![read_ram, read_cpu])
+        .invoke_handler(tauri::generate_handler![read_ram, read_cpu, read_root_fs])
         .run(tauri::generate_context!())
     {
         Ok(()) => ExitCode::SUCCESS,

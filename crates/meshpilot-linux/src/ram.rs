@@ -42,7 +42,7 @@ fn observe(
     }
     let total_bytes = total?;
     // Целые числа JSON должны быть точными и в WebView.
-    if total_bytes == 0 || total_bytes > (1 << 53) - 1 {
+    if total_bytes == 0 || total_bytes > crate::MAX_SAFE_INTEGER {
         return None;
     }
     Some(RamObservation {

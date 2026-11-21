@@ -1,4 +1,4 @@
-use meshpilot_core::{CpuObservation, Finding, RamObservation};
+use meshpilot_core::{CpuObservation, Finding, RamObservation, RootFsObservation};
 use std::{env, process::ExitCode};
 
 const USAGE: &str = "MeshPilot · диагностика без изменений\n\nmeshpilot <status|doctor> [--json] [--dry-run]\n\n  status   Состояние системы и доступность наблюдений\n  doctor   Пассивная проверка ОС, утилит и файлов WebKitGTK на CachyOS\n\nКоды: 0 — отчёт готов, 2 — ошибка аргументов, 3 — ограниченная диагностика.";
@@ -20,6 +20,16 @@ fn ram_line(ram: Option<&RamObservation>) -> String {
             r.used_bytes, r.total_bytes, r.source, r.observed_at_utc
         ),
         None => "RAM: нет данных".into(),
+    }
+}
+
+fn root_fs_line(sample: Option<&RootFsObservation>) -> String {
+    match sample {
+        Some(s) => format!(
+            "ФС /: занято {} из {} байт; доступно пользователю {} байт · {} · {}",
+            s.used_bytes, s.total_bytes, s.available_bytes, s.source, s.observed_at_utc
+        ),
+        None => "ФС /: нет данных".into(),
     }
 }
 
@@ -55,14 +65,15 @@ fn main() -> ExitCode {
                 );
             } else {
                 println!(
-                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
+                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
                     match (r.cachyos, r.os_id.as_deref()) {
                         (Some(true), Some("arch")) => "CachyOS (ID=arch)",
                         (None, Some("arch")) => "arch (CachyOS не подтверждена)",
                         (_, id) => id.unwrap_or("не удалось определить"),
                     },
                     cpu_line(r.cpu.as_ref()),
-                    ram_line(r.ram.as_ref())
+                    ram_line(r.ram.as_ref()),
+                    root_fs_line(r.root_fs.as_ref())
                 );
             }
             ExitCode::SUCCESS
@@ -118,6 +129,22 @@ mod tests {
             "CPU: 0.0 % за 637 мс · /proc/stat · 2026-11-20T10:00:00.123Z"
         );
         assert_eq!(cpu_line(None), "CPU: нет данных");
+    }
+
+    #[test]
+    fn root_fs_text_separates_available_and_unused_bytes() {
+        let sample = RootFsObservation {
+            used_bytes: 4096,
+            total_bytes: 8192,
+            available_bytes: 0,
+            source: "statvfs(/)",
+            observed_at_utc: "2026-11-20T10:00:00.123Z".into(),
+        };
+        assert_eq!(
+            root_fs_line(Some(&sample)),
+            "ФС /: занято 4096 из 8192 байт; доступно пользователю 0 байт · statvfs(/) · 2026-11-20T10:00:00.123Z"
+        );
+        assert_eq!(root_fs_line(None), "ФС /: нет данных");
     }
 
     #[test]

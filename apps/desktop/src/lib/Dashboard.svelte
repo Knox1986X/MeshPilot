@@ -1,14 +1,14 @@
 <script lang="ts">
   import { ArrowUpRight, Box, CircleHelp, ListChecks, Shield, Zap } from "@lucide/svelte";
-  import MetricCard from "./MetricCard.svelte";
+  import NetworkCard from "./NetworkCard.svelte";
   import TelemetryChart from "./TelemetryChart.svelte";
   import DiskDonut from "./DiskDonut.svelte";
   import CpuCores from "./CpuCores.svelte";
   import InfoPanel from "./InfoPanel.svelte";
   import SnapshotCard from "./SnapshotCard.svelte";
-  import type { Metric, Reading, CpuObservation, RamObservation } from "./measurements";
-  let { cpu, ram, pending, refresh }: {
-    cpu: Reading<CpuObservation>; ram: Reading<RamObservation>; pending: Record<Metric, boolean>; refresh: (kind: Metric) => void
+  import type { Metric, Reading, CpuObservation, RamObservation, RootFsObservation } from "./measurements";
+  let { cpu, ram, disk, pending, refresh }: {
+    cpu: Reading<CpuObservation>; ram: Reading<RamObservation>; disk: Reading<RootFsObservation>; pending: Record<Metric, boolean>; refresh: (kind: Metric) => void
   } = $props();
 </script>
 <div class="page dashboard">
@@ -19,9 +19,10 @@
   <div class="metrics-grid">
     <SnapshotCard kind="cpu" sample={cpu.value} issue={cpu.issue} pending={pending.cpu} refresh={() => refresh("cpu")} />
     <SnapshotCard kind="ram" sample={ram.value} issue={ram.issue} pending={pending.ram} refresh={() => refresh("ram")} />
-    <MetricCard kind="disk" /><MetricCard kind="net" />
+    <SnapshotCard kind="disk" sample={disk.value} issue={disk.issue} pending={pending.disk} refresh={() => refresh("disk")} />
+    <NetworkCard />
   </div>
-  <div class="analysis-grid"><TelemetryChart /><DiskDonut /><CpuCores /><InfoPanel /></div>
+  <div class="analysis-grid"><TelemetryChart /><DiskDonut sample={disk.value} /><CpuCores /><InfoPanel /></div>
   <section class="summary panel" aria-labelledby="maintenance-title"><div class="summary-heading"><div class="section-label"><ListChecks size={14} /> ОБСЛУЖИВАНИЕ</div><h2 id="maintenance-title">Перед началом работы</h2></div>
     <div class="summary-items">
       <a href="#/network"><CircleHelp size={16}/><span><b>Интернет и DNS</b><small>Не проверено. Профиль не выбран.</small></span><ArrowUpRight size={14}/></a>

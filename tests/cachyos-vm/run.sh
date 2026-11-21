@@ -24,7 +24,7 @@ mkdir -p "$work/payload/observer"
 cc -std=c11 -O2 -Wall -Wextra -Werror "$here/metric-name.c" -o "$work/payload/metric-name" $(pkg-config --cflags --libs atspi-2 gobject-2.0)
 install -m 755 "$cli" "$work/payload/meshpilot"
 install -m 755 "$desktop" "$work/payload/meshpilot-desktop"
-install -m 644 "$here/guest.py" "$here/checks.py" "$work/payload/"
+install -m 644 "$here/guest.py" "$here/checks.py" "$here/fs_witness.py" "$work/payload/"
 install -m 755 "$here/../native-window.sh" "$work/payload/native-window.sh"
 install -m 755 "$(command -v xdotool)" "$work/payload/observer/xdotool"
 # Зависимость наблюдателя, а не приложение: MeshPilot не получает LD_LIBRARY_PATH.

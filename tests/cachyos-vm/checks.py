@@ -81,3 +81,35 @@ def verify_cpu_card(label, started, elapsed_ms):
     check(500 <= int(interval) <= min(5000, elapsed_ms), "GUI_CPU_INTERVAL")
     seconds = datetime.fromisoformat(stamp).replace(tzinfo=timezone.utc).timestamp()
     check(started <= seconds <= time.time(), "GUI_CPU_TIME")
+
+
+def verify_cli_root_fs(sample, started, low, high):
+    check(isinstance(sample, dict) and sample.get("source") == "statvfs(/)", "CLI_FS_SOURCE")
+    check(low["unit"] == high["unit"] > 0 and low["total_bytes"] == high["total_bytes"] > 0, "FS_WITNESS")
+    for key in ("total_bytes", "used_bytes", "available_bytes"):
+        n = sample.get(key)
+        check(type(n) is int and n >= 0 and n % low["unit"] == 0 and low[key] <= n <= high[key], "CLI_FS_BYTES")
+    # Если часть свободных блоков недоступна, ни used, ни available не должны их включать.
+    other = sample["total_bytes"] - sample["used_bytes"] - sample["available_bytes"]
+    check(0 <= low["unavailable_free"] <= other <= high["unavailable_free"], "CLI_FS_ACCOUNTING")
+    verify_stamp(sample.get("observed_at_utc"), started, "CLI_FS_TIME")
+
+
+def verify_root_fs_card(label, started, low, high):
+    quantity = r"([0-9]+(?:,[0-9]{1,2})?) (Б|КиБ|МиБ|ГиБ|ТиБ|ПиБ)"
+    label = label.replace("\xa0", "").replace("\u202f", "")
+    match = re.fullmatch(r"Занято на /\s+" + quantity + r"\s+из\s+" + quantity +
+                         r"\s+Доступно пользователю:\s+" + quantity +
+                         r"\s+statvfs\(/\)\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC", label)
+    check(match, "GUI_FS_LABEL")
+    fields = match.groups()
+    check(low["total_bytes"] == high["total_bytes"] > 0, "FS_WITNESS")
+    for i, key in enumerate(("used_bytes", "total_bytes", "available_bytes")):
+        value, unit = fields[2*i:2*i + 2]
+        scale = 1024 ** ("Б", "КиБ", "МиБ", "ГиБ", "ТиБ", "ПиБ").index(unit)
+        n = float(value.replace(",", "."))
+        check((unit == "Б" and n.is_integer() and n < 1024) or (unit != "Б" and 1 <= n <= 1024), "GUI_FS_UNIT")
+        # Двоичные единицы с округлением до сотых. Не сравнивать с более ранним CLI.
+        check(low[key] / scale - 0.005001 <= n <= high[key] / scale + 0.005001, "GUI_FS_BYTES")
+    seconds = datetime.fromisoformat(fields[-1]).replace(tzinfo=timezone.utc).timestamp()
+    check(started <= seconds <= time.time(), "GUI_FS_TIME")

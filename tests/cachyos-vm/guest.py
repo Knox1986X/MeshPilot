@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 from checks import (Failure, check, proc_cpu_ticks, verify_cli_cpu, verify_cpu_card,
-                    verify_cli_ram, verify_ram_card)
+                    verify_cli_ram, verify_ram_card, verify_cli_root_fs, verify_root_fs_card)
 
 MEDIA = Path("/run/meshpilot-smoke")
 
@@ -101,18 +101,27 @@ def run_checks(emit, home):
     def user(args, **kwargs):
         return command(["setpriv", f"--reuid={account.pw_uid}", f"--regid={account.pw_gid}", "--init-groups", "--no-new-privs", "--", *args], env=env, **kwargs)
 
+    def observed(args, timeout):
+        # Не терять код выхода и диагностику самого испытуемого процесса. Произвольный stdout окна не публикуем.
+        record = json.loads(user(["/usr/bin/python3", "-I", "-B", MEDIA / "fs_witness.py", *args], timeout=timeout))
+        result = subprocess.CompletedProcess(args, record["returncode"], record["out"], record["err"])
+        return result, (record["low"], record["high"])
+
     # Только неизменившиеся данные реального образа. Не подменять os-release в тесте.
     raw_id = platform.freedesktop_os_release()["ID"]
     before = proc_cpu_ticks()
     mono = time.monotonic_ns()
     started = time.time_ns()
-    status = json.loads(user([MEDIA / "meshpilot", "status", "--json"]))
+    cli, cli_bounds = observed([MEDIA / "meshpilot", "status", "--json"], timeout=12)
+    cli.check_returncode()
+    status = json.loads(cli.stdout)
     elapsed_ms = (time.monotonic_ns() - mono) // 1_000_000
     after = proc_cpu_ticks()
     verify_cli_cpu(status.get("cpu"), started, elapsed_ms, before, after)
     check(status["read_only"] is True and status["os_id"] == raw_id and status["cachyos"] is True, "CLI_PLATFORM")
     check(all(status[k] is None for k in ("online", "dns", "updatable_apps", "security_fixes", "last_success_utc")), "CLI_OBSERVATIONS")
     verify_cli_ram(status.get("ram"), started)
+    verify_cli_root_fs(status.get("root_fs"), started, *cli_bounds)
     doctor = json.loads(user([MEDIA / "meshpilot", "doctor", "--json", "--dry-run"]))
     checks = {c["id"]: c["finding"] for c in doctor["checks"]}
     check(doctor["read_only"] is True and checks["os"] == checks["pacman"] == "detected", "CLI_DOCTOR")
@@ -140,13 +149,15 @@ def run_checks(emit, home):
     mono = time.monotonic_ns()
     observer_error = None
     try:
-        output = user([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "metric-name"], timeout=110)
+        window, window_bounds = observed([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "metric-name"], timeout=140)
+        window.check_returncode()
+        output = window.stdout
     except subprocess.CalledProcessError as err:
-        if err.returncode not in (42, 43):
+        if err.returncode not in (42, 43, 44):
             raise Failure("GUI_WINDOW") from err
         codes = {"GUI_METRIC_" + suffix for suffix in ("BUS", "APP", "TREE", "EMPTY", "IPC", "INVALID", "UNAVAILABLE", "PENDING", "PARTIAL")}
         reason = next((line for line in err.stderr.splitlines() if line in codes), "GUI_METRIC_OBSERVER")
-        observer_error = ("RAM" if err.returncode == 42 else "CPU", reason)
+        observer_error = ({42: "RAM", 43: "CPU", 44: "FS"}[err.returncode], reason)
         output = err.stdout
     except subprocess.SubprocessError as err:
         raise Failure("GUI_WINDOW") from err
@@ -163,6 +174,8 @@ def run_checks(emit, home):
     emit("RAM_CARD")
     verify_cpu_card(label("CPU", "Загрузка CPU"), started, (time.monotonic_ns() - mono) // 1_000_000)
     emit("CPU_CARD")
+    verify_root_fs_card(label("FS", "Занято на /"), started, *window_bounds)
+    emit("ROOT_FS_CARD")
 
 
 def main():

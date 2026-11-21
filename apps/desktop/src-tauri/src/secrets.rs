@@ -60,8 +60,7 @@ fn keyring_entry(account: &str) -> Result<keyring::Entry, keyring::Error> {
 /// Доступно ли системное кольцо: трактуем NoEntry как «кольцо работает, ключа нет».
 fn keyring_readable() -> bool {
     match keyring_entry("__meshpilot_probe__").and_then(|e| e.get_password()) {
-        Ok(_) => true,
-        Err(keyring::Error::NoEntry) => true,
+        Ok(_) | Err(keyring::Error::NoEntry) => true,
         Err(_) => false,
     }
 }
@@ -71,8 +70,7 @@ pub fn get_secret(state: &SecretsState, account: &str) -> (Option<String>, KeyLo
     if let Ok(entry) = keyring_entry(account) {
         match entry.get_password() {
             Ok(secret) => return (Some(secret), KeyLocation::Keyring),
-            Err(keyring::Error::NoEntry) => {}
-            Err(_) => {} // кольцо недоступно — пробуем сессию
+            Err(_) => {} // NoEntry или кольцо недоступно — пробуем сессию
         }
     }
     if let Some(secret) = state.session_get(account) {
@@ -99,7 +97,6 @@ pub fn delete_secret(state: &SecretsState, account: &str) -> KeyLocation {
     if let Ok(entry) = keyring_entry(account) {
         match entry.delete_credential() {
             Ok(()) => removed_from = KeyLocation::Keyring,
-            Err(keyring::Error::NoEntry) => {}
             Err(_) => {}
         }
     }

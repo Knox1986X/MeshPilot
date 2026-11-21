@@ -164,7 +164,7 @@ fn parse_systemd_timestamp(raw: &str) -> Option<String> {
         }
     }
     let (date, time) = (date?, time?);
-    let time = time.split('.').next().unwrap_or(time); // отбросить дробную часть
+    let time = time.split_once('.').map_or(time, |(before, _)| before); // отбросить дробную часть
     let naive = format!("{date}T{time}");
     // Трактуем как локальное время отсутствующего смещения: форматируем как есть (без конверсии TZ).
     let parsed = chrono::NaiveDateTime::parse_from_str(&naive, "%Y-%m-%dT%H:%M:%S").ok()?;

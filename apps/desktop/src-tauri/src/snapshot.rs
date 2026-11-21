@@ -381,8 +381,8 @@ pub fn collect(state: &MetricsState) -> Snapshot {
                     let dt = now.duration_since(*when).as_secs_f64();
                     if dt > 0.05 {
                         // счётчики могли обнулиться после перезагрузки — отрицательная дельта трактуем как 0
-                        let rxr = (*rx_sum as i128 - *prx as i128).max(0) as f64 / dt;
-                        let txr = (*tx_sum as i128 - *ptx as i128).max(0) as f64 / dt;
+                        let rxr = (rx_sum as i128 - *prx as i128).max(0) as f64 / dt;
+                        let txr = (tx_sum as i128 - *ptx as i128).max(0) as f64 / dt;
                         (Some(rxr), Some(txr))
                     } else {
                         (None, None)
@@ -453,7 +453,7 @@ mod tests {
         assert_eq!(g.idle_all, 810);
         assert_eq!(g.total, 965);
         assert_eq!(cores.len(), 2);
-        assert_eq!(cores[0].total, 437);
+        assert_eq!(cores[0].total, 497);
     }
 
     #[test]

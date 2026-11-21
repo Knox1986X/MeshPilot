@@ -418,7 +418,7 @@ pub(crate) fn sudo_noninteractive_ok() -> bool {
     })
 }
 
-fn run_sudo(args: &[&str], timeout: std::time::Duration) -> Result<String, String> {
+pub(crate) fn run_sudo(args: &[&str], timeout: std::time::Duration) -> Result<String, String> {
     let mut full = Vec::with_capacity(args.len() + 1);
     full.push("-n");
     full.extend_from_slice(args);
@@ -450,7 +450,9 @@ pub(crate) fn run_command(program: &str, args: &[&str], timeout: std::time::Dura
                         let _ = s.read_to_end(&mut v);
                         String::from_utf8_lossy(&v).into_owned()
                     }).unwrap_or_default();
-                    let tail: String = err.lines().rev().take(2).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join(" / ");
+                    let mut rev: Vec<&str> = err.lines().rev().take(2).collect();
+                    rev.reverse();
+                    let tail = rev.join(" / ");
                     return Err(format!("{program} завершился с кодом {}: {tail}", status.code().map(|c| c.to_string()).unwrap_or_else(|| "?".into())));
                 }
                 if out.len() > 4 * 1024 * 1024 {
@@ -739,18 +741,35 @@ mod tests {
 
     #[test]
     fn opt_in_categories_require_confirm_flag() {
-        // steam-shaders не dry_run, без confirm_risky → отказ
+        // steam-shaders без confirm_risky → отказ по opt-in-гейту
+        // (safe_profile_only выключаем, чтобы дойти именно до opt-in-гейта).
+        let spec = catalog_spec("steam-shaders").expect("spec");
+        let mut cfg = crate::settings::default_settings();
+        cfg.cleanup.safe_profile_only = false;
         let req = CleanupApplyRequest { category_ids: vec!["steam-shaders".into()], dry_run: false, confirm_risky: false };
-        let out = apply(&req);
-        assert!(!out.results[0].ok);
-        assert!(out.results[0].message.contains("подтверждения"));
+        let out = apply_one(spec, &req, &cfg, &std::collections::HashSet::new());
+        assert!(!out.ok);
+        assert!(out.message.contains("подтверждения"));
     }
 
     #[test]
     fn risky_trash_requires_flag() {
+        let spec = catalog_spec("trash").expect("spec");
+        let mut cfg = crate::settings::default_settings();
+        cfg.cleanup.safe_profile_only = false;
         let req = CleanupApplyRequest { category_ids: vec!["trash".into()], dry_run: false, confirm_risky: false };
-        let out = apply(&req);
-        assert!(!out.results[0].ok);
+        let out = apply_one(spec, &req, &cfg, &std::collections::HashSet::new());
+        assert!(!out.ok);
+    }
+
+    #[test]
+    fn safe_profile_blocks_non_safe_categories() {
+        let spec = catalog_spec("steam-shaders").expect("spec");
+        let cfg = crate::settings::default_settings(); // safe_profile_only = true
+        let req = CleanupApplyRequest { category_ids: vec!["steam-shaders".into()], dry_run: false, confirm_risky: true };
+        let out = apply_one(spec, &req, &cfg, &std::collections::HashSet::new());
+        assert!(!out.ok);
+        assert!(out.message.contains("безопасная очистка"));
     }
 
     #[test]

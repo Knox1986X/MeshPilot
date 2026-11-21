@@ -6,7 +6,6 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::settings::{normalize_provider, Settings};
-use crate::util;
 
 #[derive(Clone, Copy)]
 pub struct ProviderConf {

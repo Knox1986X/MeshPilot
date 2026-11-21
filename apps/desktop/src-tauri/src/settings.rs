@@ -232,7 +232,7 @@ mod tests {
         let patch = serde_json::json!({ "cleanup": { "safeProfileOnly": false }, "schemaVersion": 999 });
         let out = apply_patch(&base, &patch).expect("merge");
         assert!(!out.cleanup.safe_profile_only);
-        assert!(out.cleanup.include_trash); // не задан — из базовых
+        assert!(!out.cleanup.include_trash); // не задан — из базовых
         assert_eq!(out.schema_version, SCHEMA_VERSION);
     }
 

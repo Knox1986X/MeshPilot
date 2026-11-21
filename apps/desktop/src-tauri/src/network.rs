@@ -217,7 +217,10 @@ pub(crate) fn mirrors_apply() -> OpResult {
         if out.status.success() {
             Ok(())
         } else {
-            let tail = String::from_utf8_lossy(&out.stderr).lines().rev().take(2).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join(" / ");
+            let lossy = String::from_utf8_lossy(&out.stderr);
+            let mut rev: Vec<&str> = lossy.lines().rev().take(2).collect();
+            rev.reverse();
+            let tail = rev.join(" / ");
             Err(format!("sudo tee завершился с ошибкой: {tail}"))
         }
     };
@@ -617,7 +620,10 @@ fn sudo_tee(path: &str, content: &[u8]) -> Result<(), String> {
     if out.status.success() {
         Ok(())
     } else {
-        let tail = String::from_utf8_lossy(&out.stderr).lines().rev().take(2).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join(" / ");
+        let lossy = String::from_utf8_lossy(&out.stderr);
+        let mut rev: Vec<&str> = lossy.lines().rev().take(2).collect();
+        rev.reverse();
+        let tail = rev.join(" / ");
         Err(format!("sudo tee: {tail}"))
     }
 }

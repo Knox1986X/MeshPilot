@@ -212,6 +212,10 @@ def verify_os_version_card(label, started, low, high):
     check(started <= stamp <= time.time(), "GUI_OS_VERSION_TIME")
 
 
+# Доступное имя строки, когда поле VERSION отсутствует: версия не выдумывается.
+OS_VERSION_EMPTY = "Версия системы — Нет достоверного замера: /etc/os-release"
+
+
 def verify_root_fs_card(label, started, low, high):
     quantity = r"([0-9]+(?:,[0-9]{1,2})?) (Б|КиБ|МиБ|ГиБ|ТиБ|ПиБ)"
     label = label.replace("\xa0", "").replace("\u202f", "")

@@ -14,7 +14,7 @@ from pathlib import Path
 from checks import (Failure, check, proc_cpu_ticks, verify_cli_cpu, verify_cpu_card,
                     verify_cli_ram, verify_ram_card, verify_cli_root_fs, verify_root_fs_card,
                     verify_cli_uptime, verify_uptime_card, verify_cli_kernel, verify_kernel_card,
-                    verify_cli_os_version, verify_os_version_card)
+                    verify_cli_os_version, verify_os_version_card, OS_VERSION_EMPTY)
 
 from net_checks import net_ticks, verify_cli_net, verify_loopback_card, verify_shared_window
 
@@ -111,7 +111,7 @@ def run_checks(emit, home):
         result = subprocess.CompletedProcess(args, record["returncode"], record["out"], record["err"])
         return (result, record["low"], record["high"],
                 record["up_lo"], record["up_hi"], record["kr_lo"], record["kr_hi"],
-                record["ov_lo"], record["ov_hi"])
+                record["ov"])
 
     # Только неизменившиеся данные реального образа. Не подменять os-release в тесте.
     raw_id = platform.freedesktop_os_release()["ID"]
@@ -119,7 +119,7 @@ def run_checks(emit, home):
     before = proc_cpu_ticks()
     mono = time.monotonic_ns()
     started = time.time_ns()
-    cli, fs_low, fs_high, up_lo, up_hi, kr_lo, kr_hi, ov_lo, ov_hi = observed([MEDIA / "meshpilot", "status", "--json"], timeout=12)
+    cli, fs_low, fs_high, up_lo, up_hi, kr_lo, kr_hi, ov = observed([MEDIA / "meshpilot", "status", "--json"], timeout=12)
     cli.check_returncode()
     status = json.loads(cli.stdout)
     elapsed_ms = (time.monotonic_ns() - mono) // 1_000_000
@@ -133,7 +133,11 @@ def run_checks(emit, home):
     verify_cli_root_fs(status.get("root_fs"), started, fs_low, fs_high)
     verify_cli_uptime(status.get("uptime"), started, up_lo, up_hi)
     verify_cli_kernel(status.get("kernel"), started, kr_lo, kr_hi)
-    verify_cli_os_version(status.get("os_version"), started, ov_lo, ov_hi)
+    # Значение за загрузку неизменно: граница — точное. Если поля нет, приложение обязано показать честный null.
+    if ov is None:
+        check(status.get("os_version") is None, "CLI_OS_VERSION_ABSENT")
+    else:
+        verify_cli_os_version(status.get("os_version"), started, ov, ov)
     doctor = json.loads(user([MEDIA / "meshpilot", "doctor", "--json", "--dry-run"]))
     checks = {c["id"]: c["finding"] for c in doctor["checks"]}
     check(doctor["read_only"] is True and checks["os"] == checks["pacman"] == "detected", "CLI_DOCTOR")
@@ -162,7 +166,7 @@ def run_checks(emit, home):
     mono = time.monotonic_ns()
     observer_error = None
     try:
-        window, wfs_low, wfs_high, wup_lo, wup_hi, wkr_lo, wkr_hi, wov_lo, wov_hi = observed([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "metric-name"], timeout=270)
+        window, wfs_low, wfs_high, wup_lo, wup_hi, wkr_lo, wkr_hi, wov = observed([MEDIA / "native-window.sh", MEDIA / "meshpilot-desktop", MEDIA / "window-observer", MEDIA / "metric-name"], timeout=270)
         window.check_returncode()
         output = window.stdout
     except subprocess.CalledProcessError as err:
@@ -195,7 +199,16 @@ def run_checks(emit, home):
     emit("UPTIME_CARD")
     verify_kernel_card(label("KERNEL", "Ядро"), started, wkr_lo, wkr_hi)
     emit("KERNEL_CARD")
-    verify_os_version_card(label("OS_VERSION", "Версия системы"), started, wov_lo, wov_hi)
+    # Строка «Версия системы»: значение сверяется с независимым чтением;
+    # если поле VERSION на образе отсутствует, строка честно показывает «нет данных».
+    if observer_error and observer_error[0] == "OS_VERSION":
+        raise Failure(observer_error[1].replace("METRIC", "OS_VERSION"))
+    ov_lines = [line for line in output.splitlines() if line.startswith("Версия системы")]
+    check(len(ov_lines) == 1, "GUI_OS_VERSION_LABEL")
+    if wov is None:
+        check(ov_lines[0] == OS_VERSION_EMPTY, "GUI_OS_VERSION_ABSENT")
+    else:
+        verify_os_version_card(ov_lines[0], started, wov, wov)
     emit("OS_VERSION_CARD")
 
 

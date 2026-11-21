@@ -1,10 +1,33 @@
 """Фикстуры приёмки версии системы. Не читают os-release пользователя и не публикуют дерево окна."""
 from unittest import TestCase, mock
-from checks import Failure, verify_cli_os_version, verify_os_version_card
-from fs_witness import parse_os_version
+from checks import Failure, OS_VERSION_EMPTY, verify_cli_os_version, verify_os_version_card
+from fs_witness import os_version, parse_os_version
 
 
 FILE = b"NAME=\"Debian GNU/Linux\"\nVERSION_ID=\"12\"\nVERSION=\"12 (bookworm)\"\nID=debian\n"
+
+
+class OsVersionAbsent(TestCase):
+    def test_missing_or_invalid_field_is_none_not_a_crash(self):
+        # Arch-совместные образы (включая CachyOS Live) не обязаны иметь VERSION.
+        for raw in [b"NAME=CachyOS\nID=arch\nBUILD_ID=rolling\n",
+                    b"VERSION=\"\n", b"VERSION=12\nVERSION=13\n", b"VERSION=12\xfe\n"]:
+            with self.subTest(raw=raw):
+                with mock.patch("fs_witness.Path") as path:
+                    path.return_value.read_bytes.return_value = raw
+                    self.assertIsNone(os_version())
+        with mock.patch("fs_witness.Path") as path:
+            path.return_value.read_bytes.side_effect = OSError("gone")
+            self.assertIsNone(os_version())
+
+    def test_present_value_is_reported(self):
+        with mock.patch("fs_witness.Path") as path:
+            path.return_value.read_bytes.return_value = FILE
+            self.assertEqual(os_version(), "12 (bookworm)")
+
+    def test_empty_label_binds_window_and_hint(self):
+        # Строка обязана совпасть с фактической разметкой Svelte: label, «—», readHint(null).
+        self.assertEqual(OS_VERSION_EMPTY, "Версия системы — Нет достоверного замера: /etc/os-release")
 
 
 class OsVersionWitness(TestCase):

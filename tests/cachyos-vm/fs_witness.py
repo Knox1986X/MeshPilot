@@ -95,7 +95,11 @@ def parse_os_version(raw):
 
 
 def os_version():
-    return parse_os_version(Path("/etc/os-release").read_bytes())
+    """Поле VERSION или None — отсутствия/некорректность — честный исход, не сбой."""
+    try:
+        return parse_os_version(Path("/etc/os-release").read_bytes())
+    except (OSError, ValueError, UnicodeDecodeError):
+        return None
 
 
 def witnessed(args):
@@ -106,18 +110,18 @@ def witnessed(args):
     kr = kernel_version()
     kr_lo, kr_hi = kr, kr
     ov = os_version()
-    ov_lo, ov_hi = ov, ov
 
     def observe():
-        nonlocal up_lo, up_hi, kr_lo, kr_hi, ov_lo, ov_hi
+        nonlocal up_lo, up_hi, kr_lo, kr_hi
         for key, n in root_bytes().items():
             low[key], high[key] = min(low[key], n), max(high[key], n)
         u = uptime_seconds()
         up_lo, up_hi = min(up_lo, u), max(up_hi, u)
         k = kernel_version()
         kr_lo, kr_hi = min(kr_lo, k), max(kr_hi, k)
-        o = os_version()
-        ov_lo, ov_hi = min(ov_lo, o), max(ov_hi, o)
+        # Версия за загрузку неизменна: смена значения — сбой стенда.
+        if ov is not None and os_version() != ov:
+            raise ValueError("os version changed")
 
     with subprocess.Popen(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
         while True:
@@ -128,7 +132,7 @@ def witnessed(args):
                 observe()
         observe()
         return {"low": low, "high": high, "up_lo": up_lo, "up_hi": up_hi,
-                "kr_lo": kr_lo, "kr_hi": kr_hi, "ov_lo": ov_lo, "ov_hi": ov_hi,
+                "kr_lo": kr_lo, "kr_hi": kr_hi, "ov": ov,
                 "returncode": p.returncode, "out": out, "err": err}
 
 

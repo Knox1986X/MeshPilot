@@ -5,6 +5,7 @@
 #include <string.h>
 
 static gboolean saw_app, saw_card;
+static gboolean empty_ok;
 static const char *heading, *source, *incomplete = "GUI_METRIC_EMPTY";
 
 static gboolean find_card(AtspiAccessible *node, unsigned depth, unsigned *budget) {
@@ -21,8 +22,11 @@ static gboolean find_card(AtspiAccessible *node, unsigned depth, unsigned *budge
         else if (strstr(name, "Чтение")) incomplete = "GUI_METRIC_PENDING";
         else if (strstr(name, " мс")) incomplete = "GUI_METRIC_PARTIAL";
     }
+    // Для версии системы честное «нет данных» — легитимное состояние, а не провал.
+    gboolean settled = g_str_has_suffix(name, "UTC");
+    if (empty_ok && !settled && strstr(name, "Нет достоверного замера")) settled = TRUE;
     gboolean found = card && strlen(name) < 256 &&
-                     g_strstr_len(name, -1, source) && g_str_has_suffix(name, "UTC");
+                     g_strstr_len(name, -1, source) && settled;
     if (found) puts(name);
     g_free(name);
     if (found) return TRUE;
@@ -44,7 +48,7 @@ int main(int argc, char **argv) {
     else if (strcmp(argv[2], "net") == 0) { heading = "Трафик сети"; source = "/proc/net/dev"; }
     else if (strcmp(argv[2], "uptime") == 0) { heading = "Время работы"; source = "/proc/uptime"; }
     else if (strcmp(argv[2], "kernel") == 0) { heading = "Ядро"; source = "/proc/version"; }
-    else if (strcmp(argv[2], "os_version") == 0) { heading = "Версия системы"; source = "/etc/os-release"; }
+    else if (strcmp(argv[2], "os_version") == 0) { heading = "Версия системы"; source = "/etc/os-release"; empty_ok = TRUE; }
     else return 2;
     guint pid = (guint)g_ascii_strtoull(argv[1], NULL, 10);
     if (!pid || atspi_init() != 0) { fputs("GUI_METRIC_BUS\n", stderr); return 1; }

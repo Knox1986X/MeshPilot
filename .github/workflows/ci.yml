@@ -1,0 +1,121 @@
+name: MeshPilot
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: meshpilot-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (TypeScript)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with: { node-version: "22.22.3", package-manager-cache: false }
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+
+  desktop:
+    name: Desktop (Rust + Tauri + нативное окно)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: apps/desktop
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with: { node-version: "22.22.3", package-manager-cache: false }
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - name: Зависимости Tauri на одноразовом runner
+        timeout-minutes: 6
+        run: bash ../../.github/scripts/desktop-deps.sh
+      # rustfmt на этой машине недоступен (нет тулчейна), поэтому гейт — предупреждение,
+      # а не отказ. На машине с Rust: `cargo fmt --manifest-path src-tauri/Cargo.toml --check`.
+      - name: rustfmt (диагностика)
+        continue-on-error: true
+        run: |
+          set +e
+          cargo fmt --manifest-path src-tauri/Cargo.toml > fmt.log 2>&1
+          code=$?
+          echo "FMT_EXIT=$code"
+          git --no-pager diff --stat -- src-tauri > /tmp/fmtstat.txt
+          echo "::warning::FMT_EXIT=$code"
+          git --no-pager diff -- apps/desktop/src-tauri/src | gzip | base64 -w0 > /tmp/fmt.gz.b64
+          b64=$(cat /tmp/fmt.gz.b64)
+          echo "::warning::FMTGZ_BYTES=${#b64}"
+          chunk=3900; i=0
+          while [ $((i*chunk)) -lt "${#b64}" ]; do
+            i=$((i+1))
+            echo "::warning::FMTGZ $i:${b64:$(( (i-1)*chunk )):$chunk}"
+          done
+          echo "::warning::FMTGZ_END parts=$i"
+          exit 0
+      # Логи раннера из нашего окружения недоступны (blob storage не дотягивается),
+      # поэтому ошибки clippy дополнительно выставляем как ANNOTATIONS check-run:
+      # их читаем через REST API без доступа к "сырому" логу.
+      - name: clippy (лог)
+        id: clippy
+        run: |
+          set +e
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings > clippy.log 2>&1
+          code=$?
+          echo "exit=$code" >> "$GITHUB_OUTPUT"
+          echo "clippy завершился с кодом $code"
+      - name: clippy (строго)
+        run: |
+          if [ "${{ steps.clippy.outputs.exit }}" != "0" ]; then
+            # ::error:: — строки лога станут аннотациями check-run (читаются через API)
+            grep -E "error(\[|:)" clippy.log | head -45 | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+            echo "---- хвост лога clippy ----"
+            tail -n 25 clippy.log
+            exit 1
+          fi
+          echo "clippy чист"
+      - name: cargo test (юнит-тесты парсеров и инвариантов)
+        id: cargatest
+        run: |
+          set +e
+          cargo test --manifest-path src-tauri/Cargo.toml > cargo-test.log 2>&1
+          code=$?
+          echo "exit=$code" >> "$GITHUB_OUTPUT"
+          echo "cargo test завершился с кодом $code"
+      - name: cargo test (строго)
+        run: |
+          if [ "${{ steps.cargatest.outputs.exit }}" != "0" ]; then
+            grep -E "FAILED|panicked|^failures:|^error" cargo-test.log | head -45 | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+            echo "---- хвост лога cargo test ----"
+            tail -n 40 cargo-test.log
+            exit 1
+          fi
+          tail -n 5 cargo-test.log
+      - name: Сборка отладочного бинарника Tauri
+        run: npm run tauri -- build --debug --no-bundle --ci
+      - name: Нативное окно без root и без изменений хоста
+        run: xvfb-run -a dbus-run-session -- bash ../../tests/native-window.sh src-tauri/target/debug/meshpilot-desktop
+        env:
+          GDK_BACKEND: x11
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"

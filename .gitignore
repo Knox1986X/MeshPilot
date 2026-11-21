@@ -1,0 +1,14 @@
+# Rust / Tauri
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+target/
+# Node / Vite
+node_modules/
+dist/
+apps/desktop/dist/
+*.local
+# Системное
+.DS_Store
+*.log
+# Скачанные референсы (не коммитить)
+dropbox/

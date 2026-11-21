@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MeshPilot: зашифрованный конверт v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "version", "algorithm", "streamId", "revisionId", "parents", "keyId", "nonce", "ciphertext"],
+  "properties": {
+    "format": { "const": "MeshPilot" },
+    "version": { "const": 1 },
+    "algorithm": { "const": "XChaCha20-Poly1305-IETF" },
+    "streamId": { "$ref": "#/$defs/id" },
+    "revisionId": { "$ref": "#/$defs/id" },
+    "parents": { "type": "array", "maxItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "keyId": { "$ref": "#/$defs/id" },
+    "nonce": { "type": "string", "minLength": 32, "maxLength": 32, "pattern": "^[A-Za-z0-9+/]{32}$" },
+    "ciphertext": { "type": "string", "minLength": 24, "maxLength": 1398124, "pattern": "^[A-Za-z0-9+/]+={0,2}$" }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 32, "maxLength": 32, "pattern": "^[0-9a-f]{32}$" }
+  }
+}

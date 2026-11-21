@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MeshPilot: разрешённые данные внутри AEAD v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "preferences", "profiles"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "preferences": {
+      "type": "object", "additionalProperties": false,
+      "required": ["language", "theme"],
+      "properties": {
+        "language": { "enum": ["ru", "en"] },
+        "theme": { "enum": ["dark", "light", "auto"] }
+      }
+    },
+    "profiles": {
+      "type": "array", "maxItems": 64,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["profileId", "networkClass", "dnsPolicy"],
+        "properties": {
+          "profileId": { "type": "string", "pattern": "^[0-9a-f]{32}$", "minLength": 32, "maxLength": 32 },
+          "networkClass": { "enum": ["ethernet", "homeWifi", "hotspot", "metered", "corporateVpn"] },
+          "dnsPolicy": { "enum": ["system", "requireEncrypted"] }
+        }
+      }
+    }
+  }
+}

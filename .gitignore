@@ -1,0 +1,12 @@
+/target/
+**/target/
+**/node_modules/
+**/dist/
+**/.vite/
+/apps/desktop/src-tauri/gen/
+/dropbox/
+/.arena/
+.env
+.env.*
+
+__pycache__/

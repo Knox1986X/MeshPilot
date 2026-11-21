@@ -1,0 +1,69 @@
+name: CachyOS VM
+# Многогигабайтный образ не скачивается на каждое изменение документации или на внешнем PR.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Профиль полной проверки окна. 260809 — контрольный Desktop без WebKitGTK 4.1.
+        type: choice
+        default: "handheld-260628"
+        options: ["handheld-260628", "260809"]
+  push:
+    paths:
+      - .github/workflows/cachyos-vm.yml
+      - .github/scripts/desktop-deps.sh
+      - tests/cachyos-vm/**
+      - tests/native-window.sh
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - crates/**
+      - apps/desktop/**
+permissions:
+  contents: read
+concurrency:
+  group: meshpilot-cachyos-vm-${{ github.ref }}-${{ inputs.profile || 'handheld-260628' }}
+  cancel-in-progress: true
+
+jobs:
+  live:
+    name: CachyOS Live ${{ inputs.profile || 'handheld-260628' }} · CLI и нативное окно
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ISO_PROFILE: ${{ inputs.profile || 'handheld-260628' }}
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: { persist-credentials: false }
+      - name: Проверить наличие аппаратной виртуализации runner
+        run: test -c /dev/kvm && stat -c "%a %U:%G" /dev/kvm
+      - name: Проверить SHA-256 и подпись выбранного официального ISO CachyOS
+        timeout-minutes: 9
+        run: bash tests/cachyos-vm/media.sh "$RUNNER_TEMP/cachyos-media" "$ISO_PROFILE"
+      - name: Зависимости сборки и QEMU на одноразовом runner
+        timeout-minutes: 6
+        run: bash .github/scripts/desktop-deps.sh vm
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with: { node-version: "22.22.3", package-manager-cache: false }
+      - name: Собрать испытуемые бинарники по lockfiles
+        run: |
+          cargo build --locked -p meshpilot-cli
+          cd apps/desktop
+          npm ci
+          npm run tauri -- build --debug --no-bundle --ci -- --locked
+      - name: Загрузить гостя без NIC и проверить результат через UART
+        timeout-minutes: 9
+        run: |
+          # В отличие от sudo -g это работает и при несовпадении группы устройства с kvm.
+          # Право только для текущего UID на этой одноразовой VM, с возвратом исходного ACL.
+          if [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; then
+            getfacl --absolute-names /dev/kvm > "$RUNNER_TEMP/kvm.acl"
+            trap 'sudo -n setfacl --restore="$RUNNER_TEMP/kvm.acl"' EXIT
+            sudo -n setfacl -m "u:$(id -u):rw" /dev/kvm
+          fi
+          python3 -c 'import os, fcntl; fd=os.open("/dev/kvm", os.O_RDWR); assert fcntl.ioctl(fd, 0xae00)==12; os.close(fd)'
+          source tests/cachyos-vm/fixtures.sh
+          select_fixture "$ISO_PROFILE"
+          bash tests/cachyos-vm/run.sh "$RUNNER_TEMP/cachyos-media/$name" target/debug/meshpilot apps/desktop/src-tauri/target/debug/meshpilot-desktop "$ISO_PROFILE"

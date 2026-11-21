@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-read-kernel"
+description = "Прочитать версию ядра из /proc/version без параметров"
+commands.allow = ["read_kernel"]

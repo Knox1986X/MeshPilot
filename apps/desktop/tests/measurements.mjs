@@ -12,8 +12,10 @@ export async function testSnapshotCards(browser, origin) {
     const cpu = { busy_ticks: 3, total_ticks: 8, usage_percent: 37.5, interval_ms: 637, source: "/proc/stat", observed_at_utc };
     const disk = { used_bytes: 1.25 * 2 ** 30, total_bytes: 4 * 2 ** 30, available_bytes: 2 * 2 ** 30, source: "statvfs(/)", observed_at_utc };
     const uptime = { uptime_seconds: 11931, source: "/proc/uptime", observed_at_utc };
+    const kernel = { version: "6.12.9-cachyos1-1", source: "/proc/version", observed_at_utc };
     const replies = {
       uptime: [uptime, { ...uptime, uptime_seconds: 0 }, null, { ...uptime, source: "/proc/stat" }, { ...uptime, observed_at_utc: "" }, "error"],
+      kernel: [kernel, null, { ...kernel, source: "/proc/stat" }, "error"],
       net: [{ source: "/proc/net/dev", observed_at_utc, interval_ms: 500, interfaces: [] }],
       disk: [disk, { ...disk, used_bytes: 0, available_bytes: 0 }, null,
         { ...disk, available_bytes: disk.total_bytes - disk.used_bytes + 1 },
@@ -23,9 +25,9 @@ export async function testSnapshotCards(browser, origin) {
       cpu: [cpu, { ...cpu, busy_ticks: 0, usage_percent: 0 }, null, { ...cpu, usage_percent: 101 }, { ...cpu, interval_ms: 0 }, { ...cpu, total_ticks: 0 }, { ...cpu, usage_percent: 50 }, { ...cpu, source: "/wrong" }],
     };
     window.isTauri = true;
-    window.calls = { ram: [], cpu: [], disk: [], net: [], uptime: [] };
+    window.calls = { ram: [], cpu: [], disk: [], net: [], uptime: [], kernel: [] };
     window.__TAURI_INTERNALS__ = { invoke: async (cmd, args) => {
-      const key = { read_ram: "ram", read_cpu: "cpu", read_root_fs: "disk", read_network_io: "net", read_uptime: "uptime" }[cmd];
+      const key = { read_ram: "ram", read_cpu: "cpu", read_root_fs: "disk", read_network_io: "net", read_uptime: "uptime", read_kernel: "kernel" }[cmd];
       if (!key) throw new Error("Неизвестная команда");
       const n = window.calls[key].push([cmd, args]);
       if (key === "cpu" && n === 1) await new Promise(resolve => { window.finishCpu = resolve; });
@@ -104,9 +106,9 @@ export async function testSnapshotCards(browser, origin) {
     }
     assert.deepEqual(await page.evaluate(() => window.calls.disk), Array.from({ length: 11 }, () => ["read_root_fs", {}]));
     assert.deepEqual(await page.evaluate(() => window.calls.net), [["read_network_io", {}]]);
-    // Панель «Среда»: одно чтение аптайма при открытии и ручные чтения по кнопке.
+    // Панель «Среда»: по одному чтению аптайма и ядра при открытии, ручные чтения по кнопкам строк.
     assert.equal(await page.locator("#uptime-value").innerText(), "3 ч 18 м 51 с");
-    assert.equal(await page.locator(".info-panel time").getAttribute("datetime"), "2026-11-20T12:34:56.789Z");
+    assert.equal(await page.locator("#uptime-row time").getAttribute("datetime"), "2026-11-20T12:34:56.789Z");
     assert.match((await page.locator("#uptime-meta").innerText()).replace(/\s+/g, " "), /^\/proc\/uptime 2026-11-20 12:34:56 UTC$/);
     const uptimeButton = page.getByRole("button", { name: "Обновить время работы" });
     for (let n = 2; n <= 6; n++) {
@@ -115,16 +117,33 @@ export async function testSnapshotCards(browser, origin) {
       const expected = n === 2 ? "0 с" : null;
       if (expected) {
         assert.equal(await page.locator("#uptime-value").innerText(), expected);
-        assert.equal(await page.locator(".info-panel time").getAttribute("datetime"), "2026-11-20T12:34:56.789Z");
+        assert.equal(await page.locator("#uptime-row time").getAttribute("datetime"), "2026-11-20T12:34:56.789Z");
       } else {
         assert.equal(await page.locator("#uptime-value").innerText(), "—");
-        assert.equal(await page.locator(".info-panel time").count(), 0);
+        assert.equal(await page.locator("#uptime-row time").count(), 0);
         const why = n === 3 ? "Нет достоверного замера" : n === 6 ? "Канал недоступен" : "Некорректный ответ";
         assert.equal(await page.locator("#uptime-meta").innerText(), `${why}: /proc/uptime`);
       }
     }
     assert.deepEqual(await page.evaluate(() => window.calls.uptime), Array.from({ length: 6 }, () => ["read_uptime", {}]));
+    assert.equal(await page.locator("#kernel-value").innerText(), "6.12.9-cachyos1-1");
+    assert.match(await page.locator(".pill.blue").innerText(), /Kernel: 6\.12\.9-cachyos1-1/);
+    assert.equal(await page.locator("#kernel-row time").getAttribute("datetime"), "2026-11-20T12:34:56.789Z");
+    assert.match((await page.locator("#kernel-meta").innerText()).replace(/\s+/g, " "), /^\/proc\/version 2026-11-20 12:34:56 UTC$/);
+    const kernelButton = page.getByRole("button", { name: "Обновить версию ядра" });
+    for (let n = 2; n <= 4; n++) {
+      await kernelButton.click();
+      await page.waitForFunction(n => window.calls.kernel.length === n, n);
+      assert.equal(await page.locator("#kernel-value").innerText(), "—");
+      assert.equal(await page.locator("#kernel-row time").count(), 0);
+      const why = n === 2 ? "Нет достоверного замера" : n === 3 ? "Некорректный ответ" : "Канал недоступен";
+      assert.equal(await page.locator("#kernel-meta").innerText(), `${why}: /proc/version`);
+      assert.match(await page.locator(".pill.blue").innerText(), /Kernel: —/);
+    }
+    assert.deepEqual(await page.evaluate(() => window.calls.kernel), Array.from({ length: 4 }, () => ["read_kernel", {}]));
+    // Отказы ядра не стирали строку аптайма и наоборот.
+    assert.equal(await page.locator("#uptime-value").innerText(), "—");
     assert.deepEqual(errors, []);
-    console.log("CPU/RAM/ФС / и аптайм: источник, UTC, единицы, интервал CPU, ноль, отказ и независимое обновление: ОК");
+    console.log("CPU/RAM/ФС /, аптайм и ядро: источник, UTC, единицы, интервал CPU, ноль, отказ и независимое обновление: ОК");
   } finally { await page.close(); }
 }

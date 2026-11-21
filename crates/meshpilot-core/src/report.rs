@@ -65,6 +65,14 @@ pub struct UptimeObservation {
     pub observed_at_utc: String,
 }
 
+/// Версия ядра — второе слово строки `/proc/version`, одно чтение.
+#[derive(Debug, Serialize)]
+pub struct KernelObservation {
+    pub version: String,
+    pub source: &'static str,
+    pub observed_at_utc: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct StatusReport {
     pub schema_version: u8,
@@ -78,6 +86,7 @@ pub struct StatusReport {
     pub root_fs: Option<RootFsObservation>,
     pub network_io: Option<NetworkIoObservation>,
     pub uptime: Option<UptimeObservation>,
+    pub kernel: Option<KernelObservation>,
     pub online: Option<bool>,
     pub dns: Option<String>,
     pub updatable_apps: Option<u32>,
@@ -97,6 +106,7 @@ impl StatusReport {
             root_fs: None,
             network_io: None,
             uptime: None,
+            kernel: None,
             online: None,
             dns: None,
             updatable_apps: None,
@@ -148,6 +158,7 @@ mod tests {
         assert_eq!(json["schema_version"], 1);
         assert_eq!(json.get("network_io"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("uptime"), Some(&serde_json::Value::Null));
+        assert_eq!(json.get("kernel"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("cpu"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("root_fs"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("ram"), Some(&serde_json::Value::Null));

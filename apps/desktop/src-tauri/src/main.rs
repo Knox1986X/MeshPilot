@@ -73,6 +73,19 @@ fn read_uptime() -> Option<meshpilot_core::UptimeObservation> {
     }
 }
 
+/// Версия ядра — одно быстрое чтение, как и RAM/аптайм, без рабочего потока.
+#[tauri::command]
+fn read_kernel() -> Option<meshpilot_core::KernelObservation> {
+    #[cfg(target_os = "linux")]
+    {
+        meshpilot_linux::kernel_snapshot()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
 #[tauri::command]
 async fn read_network_io() -> Option<meshpilot_core::NetworkIoObservation> {
     #[cfg(target_os = "linux")]
@@ -99,7 +112,8 @@ fn main() -> ExitCode {
             read_cpu,
             read_root_fs,
             read_network_io,
-            read_uptime
+            read_uptime,
+            read_kernel
         ])
         .run(tauri::generate_context!())
     {

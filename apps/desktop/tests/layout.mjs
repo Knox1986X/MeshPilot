@@ -43,8 +43,10 @@ try {
     assert.equal(await page.locator(".donut-used, .donut-available").count(), 0);
     assert.deepEqual(await page.locator(".disk-legend dd").allTextContents(), ["—", "—", "—", "—"]);
     assert.equal(await page.locator("#uptime-value").innerText(), "—");
+    assert.equal(await page.locator("#kernel-value").innerText(), "—");
     assert.equal(await page.locator(".info-panel time").count(), 0);
     assert.doesNotMatch(await page.locator(".info-panel").innerText(), /\d|NaN/);
+    assert.match(await page.locator(".pill.blue").innerText(), /Kernel: —/);
     if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/meshpilot-${width}.png` });
     console.log(`${width}px: ${cols} колонки, без перекрытия, нет подставных измерений`);
   }

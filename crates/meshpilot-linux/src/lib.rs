@@ -1,11 +1,13 @@
 //! Пассивные пробы фиксированных источников Linux. Внешние программы не запускаются.
 mod cpu;
 mod interval;
+mod kernel;
 mod network_io;
 mod ram;
 mod root_fs;
 mod uptime;
 pub use cpu::cpu_snapshot;
+pub use kernel::kernel_snapshot;
 pub use network_io::network_io_snapshot;
 pub use ram::ram_snapshot;
 pub use root_fs::root_fs_snapshot;
@@ -112,6 +114,7 @@ pub fn status() -> StatusReport {
         ram: ram_snapshot(),
         root_fs: root_fs_snapshot(),
         uptime: uptime_snapshot(),
+        kernel: kernel_snapshot(),
         ..StatusReport::unmeasured(platform.id, platform.cachyos)
     }
 }

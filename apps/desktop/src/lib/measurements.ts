@@ -1,8 +1,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
-export type Metric = "cpu" | "ram" | "disk" | "net" | "uptime";
+export type Metric = "cpu" | "ram" | "disk" | "net" | "uptime" | "kernel";
 
-/** Те же объекты, что status --json → cpu, ram, root_fs, network_io и uptime. Браузер не является источником метрик. */
+/** Те же объекты, что status --json → cpu, ram, root_fs, network_io, uptime и kernel. Браузер не является источником метрик. */
 export interface CpuObservation {
   usage_percent: number;
   busy_ticks: number;
@@ -43,6 +43,12 @@ export interface NetworkIoObservation {
 export interface UptimeObservation {
   uptime_seconds: number;
   source: "/proc/uptime";
+  observed_at_utc: string;
+}
+
+export interface KernelObservation {
+  version: string;
+  source: "/proc/version";
   observed_at_utc: string;
 }
 
@@ -101,9 +107,16 @@ function validUptime(value: unknown): value is UptimeObservation {
   const u = value as Partial<UptimeObservation>;
   return u.source === "/proc/uptime" && utcStamp(u.observed_at_utc) && whole(u.uptime_seconds);
 }
+function validKernel(value: unknown): value is KernelObservation {
+  if (!value || typeof value !== "object") return false;
+  const k = value as Partial<KernelObservation>;
+  return k.source === "/proc/version" && utcStamp(k.observed_at_utc)
+    && typeof k.version === "string" && k.version.length >= 1 && k.version.length <= 64
+    && /^[!-~]{1,64}$/.test(k.version);
+}
 export type ReadIssue = "browser" | "unavailable" | "invalid" | "ipc";
 export type Reading<T> = { value: T; issue: null } | { value: null; issue: ReadIssue };
-async function read<T>(cmd: "read_ram" | "read_cpu" | "read_root_fs" | "read_network_io" | "read_uptime", valid: (value: unknown) => value is T): Promise<Reading<T>> {
+async function read<T>(cmd: "read_ram" | "read_cpu" | "read_root_fs" | "read_network_io" | "read_uptime" | "read_kernel", valid: (value: unknown) => value is T): Promise<Reading<T>> {
   if (!isTauri()) return { value: null, issue: "browser" };
   try {
     const result = await invoke<unknown>(cmd);
@@ -116,6 +129,7 @@ export const readRootFs = () => read("read_root_fs", validRootFs);
 export const readNetworkIo = () => read("read_network_io", validNetworkIo);
 export const readRam = () => read("read_ram", validRam);
 export const readUptime = () => read("read_uptime", validUptime);
+export const readKernel = () => read("read_kernel", validKernel);
 
 const issues = { browser: "В браузере источник недоступен", ipc: "Канал недоступен", invalid: "Некорректный ответ", unavailable: "Нет достоверного замера" };
 export function readHint(issue: ReadIssue | null, pending: boolean, source: string) {

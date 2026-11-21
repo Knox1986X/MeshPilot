@@ -1,6 +1,6 @@
 use meshpilot_core::{
-    CpuObservation, Finding, NetworkIoObservation, RamObservation, RootFsObservation,
-    UptimeObservation,
+    CpuObservation, Finding, KernelObservation, NetworkIoObservation, RamObservation,
+    RootFsObservation, UptimeObservation,
 };
 use std::{env, fmt::Write, process::ExitCode};
 
@@ -98,6 +98,13 @@ fn uptime_line(sample: Option<&UptimeObservation>) -> String {
     }
 }
 
+fn kernel_line(sample: Option<&KernelObservation>) -> String {
+    match sample {
+        Some(s) => format!("Ядро: {} · {} · {}", s.version, s.source, s.observed_at_utc),
+        None => "Ядро: нет данных".into(),
+    }
+}
+
 fn main() -> ExitCode {
     let mut command = None;
     let mut json = false;
@@ -130,12 +137,13 @@ fn main() -> ExitCode {
                 );
             } else {
                 println!(
-                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\n{}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
+                    "MeshPilot · только чтение\nСистема: {}\n{}\n{}\n{}\n{}\n{}\n{}\nИнтернет и DNS: не проверено; профиль не выбран, изменений для отката нет в этом этапе.\nОбновления программ: не проверено.\nИсправления безопасности: не проверено.\nПоследняя успешная проверка: —\nОбновить всё: недоступно; установка не запускается.",
                     match (r.cachyos, r.os_id.as_deref()) {
                         (Some(true), Some("arch")) => "CachyOS (ID=arch)",
                         (None, Some("arch")) => "arch (CachyOS не подтверждена)",
                         (_, id) => id.unwrap_or("не удалось определить"),
                     },
+                    kernel_line(r.kernel.as_ref()),
                     uptime_line(r.uptime.as_ref()),
                     cpu_line(r.cpu.as_ref()),
                     ram_line(r.ram.as_ref()),
@@ -229,6 +237,20 @@ mod tests {
             "Время работы: 0 с · /proc/uptime · 2026-11-20T10:00:00.123Z"
         );
         assert_eq!(uptime_line(None), "Время работы: нет данных");
+    }
+
+    #[test]
+    fn kernel_text_keeps_version_source_and_time() {
+        let s = KernelObservation {
+            version: "6.12.9-cachyos1-1".into(),
+            source: "/proc/version",
+            observed_at_utc: "2026-11-20T10:00:00.123Z".into(),
+        };
+        assert_eq!(
+            kernel_line(Some(&s)),
+            "Ядро: 6.12.9-cachyos1-1 · /proc/version · 2026-11-20T10:00:00.123Z"
+        );
+        assert_eq!(kernel_line(None), "Ядро: нет данных");
     }
 
     #[test]

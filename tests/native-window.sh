@@ -15,5 +15,6 @@ if [[ $# == 3 ]]; then
   timeout 27s "$3" "$app" root_fs || exit 44
   timeout 27s "$3" "$app" net || exit 45
   timeout 27s "$3" "$app" uptime || exit 46
+  timeout 27s "$3" "$app" kernel || exit 47
   kill -0 "$app"
 fi

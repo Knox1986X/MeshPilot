@@ -19,6 +19,15 @@ fn status_never_maps_unknown_to_zero_or_offline() {
     ] {
         assert_eq!(v.get(key), Some(&Value::Null), "{key}");
     }
+    // Ядро: на Linux — валидный снимок, иначе (нет procfs) — честный null, не пустая строка.
+    let k = &v["kernel"];
+    if k.is_null() {
+        return;
+    }
+    assert_eq!(k["source"], "/proc/version");
+    let ver = k["version"].as_str().expect("version is a string");
+    assert!(!ver.is_empty() && ver.len() <= 64 && ver.bytes().all(|b| b.is_ascii_graphic()));
+    assert!(k["observed_at_utc"].as_str().unwrap().ends_with("Z"));
 }
 
 #[test]

@@ -129,6 +129,39 @@ def verify_uptime_card(label, started, low, high):
     check(started <= stamp <= time.time(), "GUI_UPTIME_TIME")
 
 
+def proc_kernel():
+    # Независимое чтение второго слова /proc/version, без uname и shell.
+    raw = Path("/proc/version").read_bytes()
+    body = raw[:-1] if raw.endswith(b"\n") else raw
+    check(b"\n" not in body, "PROC_KERNEL")
+    fields = body.split()
+    check(len(fields) >= 3 and fields[0] == b"Linux" and fields[1] == b"version", "PROC_KERNEL")
+    version = fields[2]
+    check(version and len(version) <= 64 and version.isascii()
+          and all(0x21 <= b <= 0x7E for b in version), "PROC_KERNEL")
+    return version.decode("ascii")
+
+
+def verify_cli_kernel(observation, started, low, high):
+    # Версия ядра постоянна за загрузку: границы наблюдений совпадают.
+    check(isinstance(observation, dict) and observation.get("source") == "/proc/version", "CLI_KERNEL_SOURCE")
+    version = observation.get("version")
+    check(isinstance(version, str) and 1 <= len(version) <= 64
+          and all(0x21 <= ord(c) <= 0x7E for c in version) and low <= version <= high, "CLI_KERNEL_VERSION")
+    verify_stamp(observation.get("observed_at_utc"), started, "CLI_KERNEL_TIME")
+
+
+def verify_kernel_card(label, started, low, high):
+    # Доступное имя строки «Ядро» панели «Среда» из видимых dt, значения, источника и time.
+    label = label.replace("\xa0", "").replace("\u202f", "")
+    match = re.fullmatch(r"Ядро\s+([!-~]{1,64})\s+/proc/version\s+"
+                         r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC", label)
+    check(match, "GUI_KERNEL_LABEL")
+    check(low <= match.group(1) <= high, "GUI_KERNEL_VERSION")
+    stamp = datetime.fromisoformat(match.group(2)).replace(tzinfo=timezone.utc).timestamp()
+    check(started <= stamp <= time.time(), "GUI_KERNEL_TIME")
+
+
 def verify_root_fs_card(label, started, low, high):
     quantity = r"([0-9]+(?:,[0-9]{1,2})?) (Б|КиБ|МиБ|ГиБ|ТиБ|ПиБ)"
     label = label.replace("\xa0", "").replace("\u202f", "")

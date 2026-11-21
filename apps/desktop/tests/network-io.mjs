@@ -43,12 +43,12 @@ export async function testNetworkIo(browser, origin) {
     assert.match(await footer.innerText(), /lo ↓ 0 Б\/с ↑ 0 Б\/с/);
     const commands = () => page.evaluate(() => window.commands);
     const initial = await commands();
-    assert.equal(initial.length, 5); // Одна команда на источник, ноль для выбора интерфейса.
+    assert.equal(initial.length, 6); // Одна команда на источник, ноль для выбора интерфейса.
     let refreshes = 0;
     const read = async (reply) => {
       await page.evaluate(reply => { window.nextNet = reply; }, reply);
       await refresh.click();
-      await page.waitForFunction(n => window.commands.length === n && document.querySelector(".metric.net").getAttribute("aria-busy") === "false", 5 + ++refreshes);
+      await page.waitForFunction(n => window.commands.length === n && document.querySelector(".metric.net").getAttribute("aria-busy") === "false", 6 + ++refreshes);
     };
     await read({...sample, interfaces:[lo]});
     await page.getByRole("article", {name: "Трафик сети lo только локальная петля Приём 0 Б/с Передача 0 Б/с за 625 мс /proc/net/dev 2026-11-20 12:34:56 UTC", exact:true}).waitFor();

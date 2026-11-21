@@ -1,4 +1,4 @@
-"""Стенд: независимые чтения os.statvfs и /proc/uptime от того же liveuser во время работы CLI или окна.
+"""Стенд: независимые чтения os.statvfs, /proc/uptime и /proc/version от того же liveuser во время работы CLI или окна.
 
 Сохраняются только нижняя/верхняя наблюдавшиеся границы, не пути и не история.
 Этот процесс не связан с IPC приложения. Вывод остаётся внутри одноразового гостя.
@@ -38,18 +38,41 @@ def uptime_seconds():
     return parse_uptime(Path("/proc/uptime").read_bytes())
 
 
+def parse_kernel(raw):
+    """Версия — второе слово единственной строки «Linux version <версия> ...»."""
+    body = raw[:-1] if raw.endswith(b"\n") else raw
+    if b"\n" in body:
+        raise ValueError("kernel table")
+    fields = body.split()
+    if len(fields) < 3 or fields[0] != b"Linux" or fields[1] != b"version":
+        raise ValueError("kernel head")
+    version = fields[2]
+    if not version or len(version) > 64 or not version.isascii() \
+            or not all(0x21 <= b <= 0x7E for b in version):
+        raise ValueError("kernel version")
+    return version.decode("ascii")
+
+
+def kernel_version():
+    return parse_kernel(Path("/proc/version").read_bytes())
+
+
 def witnessed(args):
     low = root_bytes()
     high = low.copy()
     up = uptime_seconds()
     up_lo, up_hi = up, up
+    kr = kernel_version()
+    kr_lo, kr_hi = kr, kr
 
     def observe():
-        nonlocal up_lo, up_hi
+        nonlocal up_lo, up_hi, kr_lo, kr_hi
         for key, n in root_bytes().items():
             low[key], high[key] = min(low[key], n), max(high[key], n)
         u = uptime_seconds()
         up_lo, up_hi = min(up_lo, u), max(up_hi, u)
+        k = kernel_version()
+        kr_lo, kr_hi = min(kr_lo, k), max(kr_hi, k)
 
     with subprocess.Popen(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
         while True:
@@ -60,6 +83,7 @@ def witnessed(args):
                 observe()
         observe()
         return {"low": low, "high": high, "up_lo": up_lo, "up_hi": up_hi,
+                "kr_lo": kr_lo, "kr_hi": kr_hi,
                 "returncode": p.returncode, "out": out, "err": err}
 
 

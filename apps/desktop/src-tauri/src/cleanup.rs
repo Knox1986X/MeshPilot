@@ -138,8 +138,10 @@ fn remove_tree(path: &Path, remove_self: bool) -> (u64, u64) {
         let p = entry.path();
         let Ok(meta) = entry.metadata() else { failures += 1; continue }; // DirEntry::metadata() не следует по симлинкам
         if meta.file_type().is_symlink() || meta.is_file() {
+            // симлинк не несёт полезного объёма — считаем 0 байт
+            let size = if meta.file_type().is_symlink() { 0 } else { meta.len() };
             match std::fs::remove_file(&p) {
-                Ok(()) => freed = freed.saturating_add(meta.len()),
+                Ok(()) => freed = freed.saturating_add(size),
                 Err(_) => failures += 1,
             }
         } else if meta.is_dir() {

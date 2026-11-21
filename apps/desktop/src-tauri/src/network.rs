@@ -856,7 +856,7 @@ mod tests {
         assert_eq!(q[2] & 0x01, 0x01); // RD
         assert_eq!(u16::from_be_bytes([q[4], q[5]]), 1); // QDCOUNT=1
         assert!(q.windows("example".len()).any(|w| w == b"example"));
-        assert_eq!(q.len(), 12 + 7 + 1 + 3 + 1 + 4); // header + "example\0" + "com\0" + qtype/qclass
+        assert_eq!(q.len(), 12 + 8 + 4 + 1 + 4); // header + метка example + метка com + корневой 0 + qtype/qclass
     }
 
     #[test]

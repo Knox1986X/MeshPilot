@@ -230,6 +230,17 @@ class ModelHTTPServer:
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, directory=str(root), **kwargs)
 
+            def end_headers(self):
+                # CORS: WebEngine страница с origin 'null' (setHtml) должна грузить модель
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "*")
+                super().end_headers()
+
+            def do_OPTIONS(self):
+                self.send_response(200)
+                self.end_headers()
+
             def log_message(self, fmt, *args):  # тихий лог
                 pass
 

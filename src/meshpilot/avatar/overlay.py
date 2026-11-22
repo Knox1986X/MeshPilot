@@ -88,21 +88,32 @@ class OverlayWidget(QWidget):
         else:
             log.info("PNG overlay: %s", self.loaded.path)
 
+    def _js(self, script: str) -> None:
+        """Безопасный вызов JS в WebEngine (PySide6: page().runJavaScript)."""
+        if self._webview is None:
+            return
+        try:
+            page = self._webview.page()
+            if page is not None:
+                page.runJavaScript(script)
+        except Exception:
+            pass
+
     def _on_web_loaded(self, ok: bool) -> None:
         if not ok or self._webview is None or self.loaded is None:
             return
         url = self.loaded.model_obj.model_url() if self.loaded.model_obj else ""
         if self.loaded.type == "live2d":
-            self._webview.runJavaScript(f"loadModel('{url}')")
+            self._js(f"loadModel('{url}')")
         elif self.loaded.type == "vrm":
-            self._webview.runJavaScript(f"loadVRM('{url}')")
+            self._js(f"loadVRM('{url}')")
 
     def _tick(self) -> None:
         params = self.character.tick(0.05)
         self._blink = params["blink"]
         if self._use_web and self._webview is not None:
             # lip-sync + взгляд в Web-модель
-            self._webview.runJavaScript(f"setMouth({self._mouth:.3f})")
+            self._js(f"setMouth({self._mouth:.3f})")
         else:
             self.update()
 
@@ -131,7 +142,7 @@ class OverlayWidget(QWidget):
                         expr = c
                         break
             if expr:
-                self._webview.runJavaScript(f"setExpression('{expr}')")
+                self._js(f"setExpression('{expr}')")
 
     def set_mouth(self, value: float) -> None:
         self._mouth = max(0.0, min(1.0, value))
@@ -139,7 +150,7 @@ class OverlayWidget(QWidget):
     def set_look(self, x: float, y: float) -> None:
         """Взгляд за курсором/микрофоном: x,y в -1..1."""
         if self._use_web and self._webview is not None:
-            self._webview.runJavaScript(f"setLook({x:.3f}, {y:.3f})")
+            self._js(f"setLook({x:.3f}, {y:.3f})")
 
     def paintEvent(self, event) -> None:  # noqa: N802
         if self._use_web:

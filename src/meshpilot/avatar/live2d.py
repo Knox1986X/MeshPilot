@@ -66,7 +66,7 @@ async function loadModel(modelUrl) {
     model.scale.set(0.35);
     model.position.set(200, 480);
     model.anchor.set(0.5, 1.0);
-    app.stage.add(model);
+    app.stage.addChild(model);
     // idle анимация
     try { model.motion('Idle'); } catch(e) {}
     return 'ok';

@@ -33,7 +33,7 @@ html,body{margin:0;padding:0;background:transparent !important;overflow:hidden;w
 canvas{display:block;background:transparent !important}
 #err{position:absolute;top:8px;left:8px;color:#f66;font:12px monospace;white-space:pre-wrap;max-width:90%}
 </style>
-<script src="__VENDOR_BASE__/cubism4.min.js"></script>
+<script src="__VENDOR_BASE__/live2dcubismcore.min.js"></script>
 <script src="__VENDOR_BASE__/pixi.min.js"></script>
 <script src="__VENDOR_BASE__/live2d-display.min.js"></script>
 </head><body>

@@ -34,3 +34,10 @@ core.*
 # vendor SDK коммитим (MIT, офлайн без CDN) — не игнорируем
 !assets/vendor/
 !assets/vendor/*.js
+
+# Tauri / Node
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+*.log

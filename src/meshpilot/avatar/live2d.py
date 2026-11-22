@@ -1,99 +1,103 @@
-"""Live2D рендер для MeshPilot (как у Втуберов).
+"""Live2D рендер для MeshPilot (как у Втуберов) — Cubism 4 через PixiJS.
 
 Live2D Cubism — стандарт Втуберов: 2D-модель с ригом (.model3.json + .moc3 + текстуры + physics).
-Работает через QWebEngineView + Cubism Web SDK (JS), поэтому не нужны нативные зависимости.
+Рендер: QWebEngineView + PixiJS + @pixi/live2d-display (Cubism 4, поддерживает .moc3 от Booth).
 
-Модель: папка с .model3.json, .moc3, .png текстурами, physics3.json, expressions.
-Пример структуры:
-  assets/models/myvtuber/
-    myvtuber.model3.json
-    myvtuber.moc3
-    texture_00.png
-    physics3.json
-    expressions/...
+Почему PixiJS, а не live2d-widget 3.1.4:
+- live2d-widget 3.1.4 — это Cubism 2 эра, не умеет .moc3 (Cubism 4) от Booth (Jane Doe и др.)
+- @pixi/live2d-display 0.5 — Cubism 4, expressions/motions/physics из коробки
 
-Управление из Python через runJavaScript:
-  - setMouth(0..1) — lip-sync
-  - setExpression("smile") — эмоции
-  - setMotion("idle"/"tap") — анимации
-  - setLook(x, y) — взгляд за курсором/микрофоном
+Модель отдаётся через локальный HTTP (127.0.0.1), а не file://:
+- file:// блокируется CORS в Chromium (не грузит .moc3/текстуры)
+- китайские имена файлов (简.model3.json) ломают file:// URL
+- HTTP решает оба
+
+Управление из Python через page().runJavaScript:
+  - setMouth(0..1), setExpression(name), setLook(x, y), setMotion(name)
 """
 from __future__ import annotations
 import json
 import logging
+import threading
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import quote
 
 log = logging.getLogger("meshpilot.live2d")
 
+# PixiJS 7 + Live2D Display 0.5 (Cubism 4) с jsdelivr (надёжнее unpkg в RU)
 LIVE2D_HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8">
-<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}
-canvas{display:block}</style>
-<script src="https://cubism.live2d.com/sdk-web/cubism2.min.js"></script>
-<script src="https://unpkg.com/live2d-widget@3.1.4/lib/live2d.min.js"></script>
+<style>
+html,body{margin:0;padding:0;background:transparent !important;overflow:hidden;width:100%;height:100%}
+canvas{display:block;background:transparent !important}
+#err{position:absolute;top:8px;left:8px;color:#f66;font:12px monospace;white-space:pre-wrap;max-width:90%}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pixi/live2d-display@0.5.0/dist/index.min.js"></script>
 </head><body>
-<canvas id="canvas"></canvas>
+<div id="err"></div>
 <script>
-let model = null;
+let app = null, model = null;
 let mouthOpen = 0;
-let lookX = 0, lookY = 0;
-let currentExpression = null;
+
+function showErr(msg) {
+  const el = document.getElementById('err');
+  if (el) el.textContent = msg;
+  console.error(msg);
+}
 
 async function loadModel(modelUrl) {
   try {
-    // Live2D Widget API (простой путь для .model3.json)
-    window.L2Dwidget.init({
-      model: { json: modelUrl },
-      display: { position: "absolute", width: 400, height: 500, left: 0, top: 0 },
-      react: { opacity: 1.0 }
+    if (typeof PIXI === 'undefined') { showErr('PIXI не загрузился (нет интернета для CDN)'); return 'error: no PIXI'; }
+    if (!PIXI.live2d) { showErr('Live2D Display не загрузился'); return 'error: no live2d'; }
+    app = new PIXI.Application({
+      width: 400, height: 500,
+      backgroundAlpha: 0,  // прозрачный фон!
+      antialias: true,
     });
-    return "ok";
+    document.body.appendChild(app.view);
+    model = await PIXI.live2d.Live2DModel.from(modelUrl);
+    model.scale.set(0.35);
+    model.position.set(200, 480);
+    model.anchor.set(0.5, 1.0);
+    app.stage.add(model);
+    // idle анимация
+    try { model.motion('Idle'); } catch(e) {}
+    return 'ok';
   } catch(e) {
-    return "error: " + e.message;
+    showErr('loadModel error: ' + (e && e.message ? e.message : e));
+    return 'error: ' + (e && e.message ? e.message : e);
   }
 }
 
 function setMouth(v) {
-  if (typeof window.L2Dwidget === 'undefined') return;
+  if (!model) return;
   mouthOpen = Math.max(0, Math.min(1, v));
-  // Live2D Widget: mouth через параметры модели
   try {
-    if (window.L2Dwidget && window.L2Dwidget.model) {
-      window.L2Dwidget.model.setParameterValueById("ParamMouthOpenY", mouthOpen);
-    }
+    // Cubism 4: ParamMouthOpenY
+    model.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', mouthOpen);
   } catch(e) {}
 }
 
 function setExpression(name) {
-  if (typeof window.L2Dwidget === 'undefined') return;
-  currentExpression = name;
-  try {
-    if (window.L2Dwidget && window.L2Dwidget.model) {
-      window.L2Dwidget.model.setExpression(name);
-    }
-  } catch(e) {}
+  if (!model || !name) return;
+  try { model.expression(name); } catch(e) {}
 }
 
 function setLook(x, y) {
-  if (typeof window.L2Dwidget === 'undefined') return;
-  lookX = x; lookY = y;
+  if (!model) return;
   try {
-    if (window.L2Dwidget && window.L2Dwidget.model) {
-      window.L2Dwidget.model.setParameterValueById("ParamAngleX", x * 30);
-      window.L2Dwidget.model.setParameterValueById("ParamAngleY", y * 30);
-      window.L2Dwidget.model.setParameterValueById("ParamEyeBallX", x);
-      window.L2Dwidget.model.setParameterValueById("ParamEyeBallY", y);
-    }
+    model.internalModel.coreModel.setParameterValueById('ParamAngleX', x * 30);
+    model.internalModel.coreModel.setParameterValueById('ParamAngleY', y * 30);
+    model.internalModel.coreModel.setParameterValueById('ParamEyeBallX', x);
+    model.internalModel.coreModel.setParameterValueById('ParamEyeBallY', y);
   } catch(e) {}
 }
 
 function setMotion(name) {
-  if (typeof window.L2Dwidget === 'undefined') return;
-  try {
-    if (window.L2Dwidget && window.L2Dwidget.model) {
-      window.L2Dwidget.model.startMotion(name);
-    }
-  } catch(e) {}
+  if (!model) return;
+  try { model.motion(name); } catch(e) {}
 }
 </script>
 </body></html>
@@ -115,10 +119,7 @@ class Live2DModel:
         if self.path.suffix != ".json":
             raise ValueError(f"Live2D модель должна быть .model3.json, получено: {self.path}")
         self.model_json = json.loads(self.path.read_text(encoding="utf-8"))
-        # парсим expressions и motions из model3.json (Cubism 3/4 форматы различаются)
         file_refs = self.model_json.get("FileReferences", {})
-        # Cubism 4: FileReferences.Expressions = [{"Name": ..., "File": ...}]
-        # Cubism 3 / Booth: может быть пустым, тогда ищем *.exp3.json рядом
         exprs = file_refs.get("Expressions", []) or file_refs.get("Expressions3", [])
         self.expressions = []
         for e in exprs:
@@ -128,10 +129,8 @@ class Live2DModel:
                     self.expressions.append(name)
             elif isinstance(e, str):
                 self.expressions.append(e)
-        # fallback: ищем .exp3.json файлы в папке модели (Booth-архивы Jane Doe и др.)
         if not self.expressions:
             for f in sorted(self.path.parent.glob("*.exp3.json")):
-                # имя без расширения = имя эмоции (китайское/английское)
                 self.expressions.append(f.stem)
         motions = file_refs.get("Motions", {}) or file_refs.get("Motions3", {})
         if isinstance(motions, dict):
@@ -156,8 +155,70 @@ class Live2DModel:
         return self.moc3_path.exists()
 
     def model_url(self) -> str:
-        """file:// URL для QWebEngineView (абсолютный путь обязателен)."""
+        """file:// URL (fallback, если HTTP сервер недоступен)."""
         return self.path.resolve().as_uri()
+
+    def http_url(self, base_url: str) -> str:
+        """HTTP URL через локальный сервер (основной путь, без CORS).
+
+        base_url: http://127.0.0.1:PORT (корень = assets/models/)
+        Возвращает URL-encoded путь от корня.
+        """
+        root = _find_models_root(self.path)
+        rel = self.path.resolve().relative_to(root.resolve())
+        # quote каждый сегмент (китайские имена -> %E7%AE%80...)
+        parts = [quote(p, safe="") for p in rel.parts]
+        return base_url.rstrip("/") + "/" + "/".join(parts)
+
+
+def _find_models_root(model_path: Path) -> Path:
+    """Ищет корень assets/models/ вверх от модели (для HTTP сервера)."""
+    cur = model_path.resolve().parent
+    for _ in range(6):
+        if cur.name == "models" and (cur.parent.name == "assets"):
+            return cur
+        if cur.name == "assets":
+            m = cur / "models"
+            if m.exists():
+                return m
+        cur = cur.parent
+    # fallback: папка модели
+    return model_path.resolve().parent
+
+
+class ModelHTTPServer:
+    """Локальный HTTP сервер для файлов модели (без CORS, с китайскими именами)."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = Path(root).resolve()
+        self._server: ThreadingHTTPServer | None = None
+        self._thread: threading.Thread | None = None
+        self.port: int = 0
+
+    def start(self) -> str:
+        """Запускает сервер, возвращает base_url http://127.0.0.1:PORT."""
+        root = self.root
+
+        class Handler(SimpleHTTPRequestHandler):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, directory=str(root), **kwargs)
+
+            def log_message(self, fmt, *args):  # тихий лог
+                pass
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self._server.server_address[1]
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+        url = f"http://127.0.0.1:{self.port}"
+        log.info("Model HTTP server: %s (root=%s)", url, root)
+        return url
+
+    def stop(self) -> None:
+        if self._server:
+            self._server.shutdown()
+            self._server = None
+
 
 def detect_model_type(path: str | Path) -> str:
     """Определяет тип модели по расширению: live2d | vrm | png | unknown."""
@@ -171,7 +232,6 @@ def detect_model_type(path: str | Path) -> str:
     if suffix in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
         return "png"
     if p.is_dir():
-        # папка с моделью — ищем рекурсивно (Booth-архивы часто вложенные)
         for f in p.rglob("*.model3.json"):
             return "live2d"
         for f in p.rglob("*.vrm"):
@@ -179,11 +239,7 @@ def detect_model_type(path: str | Path) -> str:
     return "unknown"
 
 def find_model_in_dir(directory: str | Path) -> Path | None:
-    """Ищет модель в папке (рекурсивно): сначала .model3.json, потом .vrm, потом .png.
-
-    Поддерживает вложенные папки Booth-архивов, напр.:
-      assets/models/jane/简/简.model3.json
-    """
+    """Ищет модель в папке (рекурсивно): сначала .model3.json, потом .vrm, потом .png."""
     d = Path(directory)
     if not d.exists():
         return None

@@ -3,15 +3,18 @@
 «Сидит» на окнах: прозрачное, always-on-top, draggable, dock к краям,
 кликабельное (клик = голосовой ввод), click-through для игр.
 
-- Live2D (.model3.json): QWebEngineView + Cubism Web SDK, lip-sync/expressions/physics
-- VRM (.vrm): QWebEngineView + three.js + three-vrm, blendshapes, idle
+- Live2D (.model3.json): QWebEngineView + PixiJS Cubism 4, модель через локальный HTTP
+- VRM (.vrm): QWebEngineView + three.js + three-vrm
 - PNG: fallback с blink/bounce (если WebEngine недоступен или модель PNG)
+
+Прозрачность WebEngine: page background transparent + WA_TranslucentBackground,
+иначе белый прямоугольник вместо модели.
 """
 from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QPoint, QUrl
+from PySide6.QtCore import Qt, QTimer, QPoint
 from PySide6.QtGui import QPixmap, QPainter, QColor
 from PySide6.QtWidgets import QWidget, QApplication, QVBoxLayout
 
@@ -37,7 +40,8 @@ class OverlayWidget(QWidget):
         self.model_path = Path(model_path)
         self.loaded: LoadedModel | None = None
         self._webview = None
-        self._web_ready = False  # True только после успешной загрузки модели в WebEngine
+        self._web_ready = False
+        self._http_server = None
         self._drag_offset = QPoint()
         self._mouth = 0.0
         self._blink = 0.0
@@ -46,12 +50,11 @@ class OverlayWidget(QWidget):
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
-        self.resize(280, 340)
+        self.resize(400, 500)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # пробуем загрузить Live2D/VRM через WebEngine
         self._try_load_web_model(layout)
 
         self._timer = QTimer(self)
@@ -71,29 +74,45 @@ class OverlayWidget(QWidget):
         if self.loaded.type in ("live2d", "vrm"):
             try:
                 from PySide6.QtWebEngineWidgets import QWebEngineView
-                from meshpilot.avatar.live2d import LIVE2D_HTML
+                from meshpilot.avatar.live2d import LIVE2D_HTML, ModelHTTPServer, _find_models_root
                 from meshpilot.avatar.vrm import VRM_HTML
+
+                # HTTP сервер для файлов модели (без CORS, с китайскими именами)
+                if self.loaded.type == "live2d":
+                    root = _find_models_root(self.loaded.path)
+                    self._http_server = ModelHTTPServer(root)
+                    base_url = self._http_server.start()
+                    self._model_http_url = self.loaded.model_obj.http_url(base_url)
+                    log.info("Live2D HTTP URL: %s", self._model_http_url)
+                else:
+                    self._model_http_url = self.loaded.model_obj.model_url()
 
                 self._webview = QWebEngineView(self)
                 self._webview.setAttribute(Qt.WA_TranslucentBackground, True)
+                # прозрачный фон страницы — иначе белый прямоугольник!
+                try:
+                    page = self._webview.page()
+                    if page is not None:
+                        page.setBackgroundColor(Qt.transparent)
+                except Exception:
+                    pass
                 html = LIVE2D_HTML if self.loaded.type == "live2d" else VRM_HTML
                 self._webview.setHtml(html)
                 layout.addWidget(self._webview)
                 self._use_web = True
-                # загружаем модель после загрузки страницы
                 self._webview.loadFinished.connect(self._on_web_loaded)
                 log.info("WebEngine overlay для %s", self.loaded.type)
             except ImportError as e:
                 log.warning("QWebEngineView недоступен (%s), PNG fallback", e)
                 self._use_web = False
+            except Exception as e:
+                log.warning("WebEngine overlay failed (%s), PNG fallback", e)
+                self._use_web = False
         else:
             log.info("PNG overlay: %s", self.loaded.path)
 
     def _js(self, script: str, require_ready: bool = True) -> None:
-        """Безопасный вызов JS в WebEngine (PySide6: page().runJavaScript).
-
-        require_ready=True — не вызывать, пока модель не загружена (без спама ошибок).
-        """
+        """Безопасный вызов JS в WebEngine (PySide6: page().runJavaScript)."""
         if self._webview is None:
             return
         if require_ready and not self._web_ready:
@@ -108,31 +127,28 @@ class OverlayWidget(QWidget):
     def _on_web_loaded(self, ok: bool) -> None:
         if not ok or self._webview is None or self.loaded is None:
             return
-        try:
-            url = self.loaded.model_obj.model_url() if self.loaded.model_obj else ""
-        except Exception as e:
-            log.warning("Не удалось получить URL модели: %s", e)
-            return
-        # loadModel/loadVRM — до ready, поэтому require_ready=False
+        url = getattr(self, "_model_http_url", "")
+        if not url and self.loaded.model_obj:
+            try:
+                url = self.loaded.model_obj.model_url()
+            except Exception as e:
+                log.warning("Не удалось получить URL модели: %s", e)
+                return
         if self.loaded.type == "live2d":
             self._js(f"loadModel('{url}')", require_ready=False)
-            # помечаем ready с задержкой (модель грузится асинхронно в JS)
-            QTimer.singleShot(3000, lambda: setattr(self, "_web_ready", True))
+            QTimer.singleShot(4000, lambda: setattr(self, "_web_ready", True))
         elif self.loaded.type == "vrm":
             self._js(f"loadVRM('{url}')", require_ready=False)
-            QTimer.singleShot(3000, lambda: setattr(self, "_web_ready", True))
+            QTimer.singleShot(4000, lambda: setattr(self, "_web_ready", True))
 
     def _tick(self) -> None:
         params = self.character.tick(0.05)
         self._blink = params["blink"]
         if self._use_web and self._webview is not None:
-            # lip-sync + взгляд в Web-модель
             self._js(f"setMouth({self._mouth:.3f})")
         else:
             self.update()
 
-    # Маппинг эмоций MeshPilot -> имена expressions в модели.
-    # Поддерживает английские (smile/sad) и китайские (Jane Doe ZZZ: 脸红/生气/泪...).
     EXPRESSION_MAP = {
         AvatarState.SPEAKING: ["smile", "脸红", "爱心眼", "星星眼"],
         AvatarState.LISTENING: ["neutral", ""],
@@ -147,7 +163,6 @@ class OverlayWidget(QWidget):
         if self._use_web and self._webview is not None:
             st = AvatarState(state) if isinstance(state, str) else state
             candidates = self.EXPRESSION_MAP.get(st, ["neutral"])
-            # выбираем первое имя, которое есть в модели (если модель загружена)
             expr = candidates[0]
             if self.loaded is not None and self.loaded.type == "live2d" and self.loaded.model_obj is not None:
                 available = set(self.loaded.model_obj.expressions)
@@ -168,7 +183,7 @@ class OverlayWidget(QWidget):
 
     def paintEvent(self, event) -> None:  # noqa: N802
         if self._use_web:
-            return  # рисует WebEngine
+            return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         img_path = self.loaded.path if self.loaded and self.loaded.type == "png" else Path("assets/models/meshpilot.png")
@@ -219,3 +234,8 @@ class OverlayWidget(QWidget):
 
     def set_click_through(self, enabled: bool) -> None:
         self.setAttribute(Qt.WA_TransparentForMouseEvents, enabled)
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        if self._http_server:
+            self._http_server.stop()
+        super().closeEvent(event)

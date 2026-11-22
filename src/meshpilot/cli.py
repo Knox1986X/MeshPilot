@@ -109,6 +109,8 @@ def gui():
 
     app_qt = QApplication(sys.argv)
     app_qt.setApplicationName("MeshPilot")
+    from meshpilot.gui.theme import apply_theme
+    apply_theme(app_qt)
     # модель персонажа из конфига (Live2D/VRM/PNG)
     from meshpilot.config import config as _cfg
     model_path = _cfg.get("avatar", "model", default="assets/models/meshpilot.model3.json")

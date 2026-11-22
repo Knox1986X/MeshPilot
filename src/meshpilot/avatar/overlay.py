@@ -37,6 +37,7 @@ class OverlayWidget(QWidget):
         self.model_path = Path(model_path)
         self.loaded: LoadedModel | None = None
         self._webview = None
+        self._web_ready = False  # True только после успешной загрузки модели в WebEngine
         self._drag_offset = QPoint()
         self._mouth = 0.0
         self._blink = 0.0
@@ -88,9 +89,14 @@ class OverlayWidget(QWidget):
         else:
             log.info("PNG overlay: %s", self.loaded.path)
 
-    def _js(self, script: str) -> None:
-        """Безопасный вызов JS в WebEngine (PySide6: page().runJavaScript)."""
+    def _js(self, script: str, require_ready: bool = True) -> None:
+        """Безопасный вызов JS в WebEngine (PySide6: page().runJavaScript).
+
+        require_ready=True — не вызывать, пока модель не загружена (без спама ошибок).
+        """
         if self._webview is None:
+            return
+        if require_ready and not self._web_ready:
             return
         try:
             page = self._webview.page()
@@ -102,11 +108,19 @@ class OverlayWidget(QWidget):
     def _on_web_loaded(self, ok: bool) -> None:
         if not ok or self._webview is None or self.loaded is None:
             return
-        url = self.loaded.model_obj.model_url() if self.loaded.model_obj else ""
+        try:
+            url = self.loaded.model_obj.model_url() if self.loaded.model_obj else ""
+        except Exception as e:
+            log.warning("Не удалось получить URL модели: %s", e)
+            return
+        # loadModel/loadVRM — до ready, поэтому require_ready=False
         if self.loaded.type == "live2d":
-            self._js(f"loadModel('{url}')")
+            self._js(f"loadModel('{url}')", require_ready=False)
+            # помечаем ready с задержкой (модель грузится асинхронно в JS)
+            QTimer.singleShot(3000, lambda: setattr(self, "_web_ready", True))
         elif self.loaded.type == "vrm":
-            self._js(f"loadVRM('{url}')")
+            self._js(f"loadVRM('{url}')", require_ready=False)
+            QTimer.singleShot(3000, lambda: setattr(self, "_web_ready", True))
 
     def _tick(self) -> None:
         params = self.character.tick(0.05)

@@ -92,4 +92,4 @@ class VRMModel:
         return self.path.exists() and self.path.stat().st_size > 1000
 
     def model_url(self) -> str:
-        return self.path.as_uri()
+        return self.path.resolve().as_uri()

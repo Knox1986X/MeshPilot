@@ -54,6 +54,7 @@ async function loadModel(modelUrl) {
 }
 
 function setMouth(v) {
+  if (typeof window.L2Dwidget === 'undefined') return;
   mouthOpen = Math.max(0, Math.min(1, v));
   // Live2D Widget: mouth через параметры модели
   try {
@@ -64,6 +65,7 @@ function setMouth(v) {
 }
 
 function setExpression(name) {
+  if (typeof window.L2Dwidget === 'undefined') return;
   currentExpression = name;
   try {
     if (window.L2Dwidget && window.L2Dwidget.model) {
@@ -73,6 +75,7 @@ function setExpression(name) {
 }
 
 function setLook(x, y) {
+  if (typeof window.L2Dwidget === 'undefined') return;
   lookX = x; lookY = y;
   try {
     if (window.L2Dwidget && window.L2Dwidget.model) {
@@ -85,6 +88,7 @@ function setLook(x, y) {
 }
 
 function setMotion(name) {
+  if (typeof window.L2Dwidget === 'undefined') return;
   try {
     if (window.L2Dwidget && window.L2Dwidget.model) {
       window.L2Dwidget.model.startMotion(name);
@@ -111,10 +115,34 @@ class Live2DModel:
         if self.path.suffix != ".json":
             raise ValueError(f"Live2D модель должна быть .model3.json, получено: {self.path}")
         self.model_json = json.loads(self.path.read_text(encoding="utf-8"))
-        # парсим expressions и motions из model3.json
+        # парсим expressions и motions из model3.json (Cubism 3/4 форматы различаются)
         file_refs = self.model_json.get("FileReferences", {})
-        self.expressions = [e.get("Name", "") for e in file_refs.get("Expressions", [])]
-        self.motions = list(file_refs.get("Motions", {}).keys())
+        # Cubism 4: FileReferences.Expressions = [{"Name": ..., "File": ...}]
+        # Cubism 3 / Booth: может быть пустым, тогда ищем *.exp3.json рядом
+        exprs = file_refs.get("Expressions", []) or file_refs.get("Expressions3", [])
+        self.expressions = []
+        for e in exprs:
+            if isinstance(e, dict):
+                name = e.get("Name") or e.get("name") or ""
+                if name:
+                    self.expressions.append(name)
+            elif isinstance(e, str):
+                self.expressions.append(e)
+        # fallback: ищем .exp3.json файлы в папке модели (Booth-архивы Jane Doe и др.)
+        if not self.expressions:
+            for f in sorted(self.path.parent.glob("*.exp3.json")):
+                # имя без расширения = имя эмоции (китайское/английское)
+                self.expressions.append(f.stem)
+        motions = file_refs.get("Motions", {}) or file_refs.get("Motions3", {})
+        if isinstance(motions, dict):
+            self.motions = list(motions.keys())
+        elif isinstance(motions, list):
+            self.motions = [str(m) for m in motions]
+        else:
+            self.motions = []
+        if not self.motions:
+            for f in sorted(self.path.parent.glob("*.motion3.json")):
+                self.motions.append(f.stem)
         log.info("Live2D модель: %s expressions=%s motions=%s", self.path.name, self.expressions, self.motions)
 
     @property
@@ -128,8 +156,8 @@ class Live2DModel:
         return self.moc3_path.exists()
 
     def model_url(self) -> str:
-        """file:// URL для QWebEngineView."""
-        return self.path.as_uri()
+        """file:// URL для QWebEngineView (абсолютный путь обязателен)."""
+        return self.path.resolve().as_uri()
 
 def detect_model_type(path: str | Path) -> str:
     """Определяет тип модели по расширению: live2d | vrm | png | unknown."""

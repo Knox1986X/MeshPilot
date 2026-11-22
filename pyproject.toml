@@ -8,13 +8,12 @@ version = "0.1.0"
 description = "MeshPilot — голосовой ассистент (Jarvis / Хан / Аниме) + оптимизатор CachyOS: чистка, зеркала, DNS, Zapret2"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = "MIT"
 authors = [{name = "MeshPilot"}]
 keywords = ["voice-assistant", "cachyos", "arch", "zapret", "groq", "gigachat", "hermes", "optimizer"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Topic :: Desktop Environment",

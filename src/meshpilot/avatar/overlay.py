@@ -24,8 +24,14 @@ class OverlayWidget(QWidget):
     def __init__(
         self,
         character: Character | None = None,
-        model_path: str = "assets/models/meshpilot.model3.json",
+        model_path: str | None = None,
     ) -> None:
+        if model_path is None:
+            try:
+                from meshpilot.config import config as _cfg
+                model_path = _cfg.get("avatar", "model", default="assets/models/meshpilot.model3.json")
+            except Exception:
+                model_path = "assets/models/meshpilot.model3.json"
         super().__init__()
         self.character = character or Character()
         self.model_path = Path(model_path)

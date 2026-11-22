@@ -24,13 +24,31 @@ class AsyncWorker(QThread):
             self.finished.emit(str(result))
         except Exception as e:
             self.finished.emit(f"Ошибка: {e}")
+    def cleanup(self):
+        # вызывается по finished: поток можно удалять
+        self.deleteLater()
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("MeshPilot — голосовой ассистент + оптимизатор CachyOS")
         self.resize(960, 640)
+        self._workers: list[AsyncWorker] = []
         self._build_ui()
+
+    def _start_worker(self, coro_fn, *args, **kwargs) -> AsyncWorker:
+        worker = self._start_worker(coro_fn, *args, **kwargs)
+        self._workers.append(worker)
+        worker.finished.connect(worker.cleanup)
+        return worker
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        # ждём потоки, чтобы не было "QThread: Destroyed while thread is still running"
+        for w in list(self._workers):
+            if w.isRunning():
+                w.quit()
+                w.wait(2000)
+        super().closeEvent(event)
 
     def _build_ui(self) -> None:
         tabs = QTabWidget()
@@ -144,9 +162,8 @@ class MainWindow(QMainWindow):
         self.chat_log.append(f"Вы: {text}")
         from meshpilot.core.agent import build_default_agent
         agent = build_default_agent()
-        worker = AsyncWorker(agent.run, text)
+        worker = self._start_worker(agent.run, text)
         worker.finished.connect(lambda r: self.chat_log.append(f"MeshPilot: {r}"))
-        worker.start()
 
     def _voice_input(self) -> None:
         self.chat_log.append("🎤 Слушаю... (запись 5 сек)")
@@ -159,74 +176,63 @@ class MainWindow(QMainWindow):
             self.chat_log.append(f"Микрофон недоступен: {e}")
             return
         stt = STT()
-        worker = AsyncWorker(stt.transcribe_file, tmp)
+        worker = self._start_worker(stt.transcribe_file, tmp)
         worker.finished.connect(lambda r: (self.chat_log.append(f"🎤 Распознано: {r}"), self.chat_input.setText(r)))
-        worker.start()
 
     def _opt_clean_all(self) -> None:
         from meshpilot.optimizer import cleaner
         dry = self.dry_run_check.isChecked()
         self.opt_progress.show()
-        worker = AsyncWorker(lambda: "\n".join(f"{r.name}: {r.details}" for r in cleaner.clean_all(dry_run=dry)))
+        worker = self._start_worker(lambda: "\n".join(f"{r.name}: {r.details}" for r in cleaner.clean_all(dry_run=dry)))
         worker.finished.connect(lambda r: (self.opt_log.append(r), self.opt_progress.hide()))
-        worker.start()
 
     def _opt_cache(self) -> None:
         from meshpilot.optimizer import cleaner
         dry = self.dry_run_check.isChecked()
-        worker = AsyncWorker(lambda: str(cleaner.clean_pacman_cache(dry_run=dry).details))
+        worker = self._start_worker(lambda: str(cleaner.clean_pacman_cache(dry_run=dry).details))
         worker.finished.connect(self.opt_log.append)
-        worker.start()
 
     def _opt_orphans(self) -> None:
         from meshpilot.optimizer import cleaner
         dry = self.dry_run_check.isChecked()
-        worker = AsyncWorker(lambda: str(cleaner.remove_orphans(dry_run=dry).details))
+        worker = self._start_worker(lambda: str(cleaner.remove_orphans(dry_run=dry).details))
         worker.finished.connect(self.opt_log.append)
-        worker.start()
 
     def _opt_mirrors(self) -> None:
         from meshpilot.optimizer import mirrors
         dry = self.dry_run_check.isChecked()
-        worker = AsyncWorker(mirrors.auto_mirrors, dry_run=dry)
+        worker = self._start_worker(mirrors.auto_mirrors, dry_run=dry)
         worker.finished.connect(self.opt_log.append)
-        worker.start()
 
     def _opt_health(self) -> None:
         from meshpilot.optimizer import health
-        worker = AsyncWorker(health.health_report)
+        worker = self._start_worker(health.health_report)
         worker.finished.connect(self.opt_log.append)
-        worker.start()
 
     def _zapret_status(self) -> None:
         from meshpilot.optimizer import zapret
-        worker = AsyncWorker(lambda: str(zapret.get_status()))
+        worker = self._start_worker(lambda: str(zapret.get_status()))
         worker.finished.connect(self.zapret_log.append)
-        worker.start()
 
     def _zapret_install(self) -> None:
         from meshpilot.optimizer import zapret
         dry = self.zapret_dry.isChecked()
-        worker = AsyncWorker(zapret.install, dry_run=dry)
+        worker = self._start_worker(zapret.install, dry_run=dry)
         worker.finished.connect(self.zapret_log.append)
-        worker.start()
 
     def _zapret_auto(self) -> None:
         from meshpilot.optimizer import zapret
         dry = self.zapret_dry.isChecked()
-        worker = AsyncWorker(zapret.auto_strategy, dry_run=dry)
+        worker = self._start_worker(zapret.auto_strategy, dry_run=dry)
         worker.finished.connect(self.zapret_log.append)
-        worker.start()
 
     def _zapret_restart(self) -> None:
         from meshpilot.optimizer import zapret
-        worker = AsyncWorker(zapret.restart)
+        worker = self._start_worker(zapret.restart)
         worker.finished.connect(self.zapret_log.append)
-        worker.start()
 
     def _dns_bench(self) -> None:
         from meshpilot.optimizer import dns
         dry = self.zapret_dry.isChecked()
-        worker = AsyncWorker(dns.auto_dns, dry_run=dry)
+        worker = self._start_worker(dns.auto_dns, dry_run=dry)
         worker.finished.connect(self.zapret_log.append)
-        worker.start()

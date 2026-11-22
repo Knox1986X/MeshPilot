@@ -109,14 +109,18 @@ def gui():
 
     app_qt = QApplication(sys.argv)
     app_qt.setApplicationName("MeshPilot")
+    # модель персонажа из конфига (Live2D/VRM/PNG)
+    from meshpilot.config import config as _cfg
+    model_path = _cfg.get("avatar", "model", default="assets/models/meshpilot.model3.json")
     window = MainWindow()
     window.show()
     panel = BottomPanel()
     panel.show()
     panel.dock_bottom()
-    overlay = OverlayWidget()
+    overlay = OverlayWidget(model_path=model_path)
     overlay.show()
-    overlay.dock_to("bottom-right")
+    dock = _cfg.get("avatar", "dock", default="bottom-right")
+    overlay.dock_to(dock)
     tray = create_tray(app_qt, on_show=window.show)
     sys.exit(app_qt.exec())
 

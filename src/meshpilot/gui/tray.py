@@ -6,6 +6,11 @@ from PySide6.QtGui import QIcon
 def create_tray(app: QApplication, on_show=None, on_quit=None) -> QSystemTrayIcon:
     tray = QSystemTrayIcon()
     tray.setToolTip("MeshPilot")
+    # иконка из PNG fallback (если есть), иначе пустая — без варнинга
+    from pathlib import Path
+    icon_path = Path("assets/models/meshpilot.png")
+    if icon_path.exists():
+        tray.setIcon(QIcon(str(icon_path)))
     menu = QMenu()
     show_action = menu.addAction("Показать")
     quit_action = menu.addAction("Выход")

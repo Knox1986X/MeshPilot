@@ -10,13 +10,19 @@ sudo pacman -S --noconfirm --needed \
   ffmpeg portaudio alsa-lib \
   rate-mirrors reflector paccache \
   zram-generator gamemode \
-  qt6-base qt6-multimedia
+  qt6-base qt6-multimedia qt6-webengine
 
-# 2. Python venv + зависимости
+# 2. Python venv + зависимости (ядро всегда, голос/GUI опционально)
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
-pip install -e ".[dev]"
+pip install -e .
+# Голос (STT/TTS). На Python 3.14 openwakeword может не встать (tflite-runtime) — это нормально,
+# wake word просто не будет работать, остальной голос работает.
+pip install -e ".[voice]" || echo "WARN: voice extras не встали, ядро работает без них"
+# GUI: PySide6 уже есть из pacman (python-pyside6), WebEngine — qt6-webengine.
+# Если pacman-версии нет, поставь через pip:
+# pip install PySide6 PySide6-WebEngine
 
 # 3. Ollama + Hermes (локальный LLM)
 if ! command -v ollama &>/dev/null; then

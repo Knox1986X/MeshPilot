@@ -21,6 +21,8 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Speech",
     "Topic :: System :: Systems Administration",
 ]
+# Ядро: лёгкие зависимости, работают на Python 3.11-3.14.
+# Тяжёлые (STT/TTS/GUI) — в extras ниже, ставятся по желанию.
 dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
@@ -30,24 +32,40 @@ dependencies = [
     "rich>=13.7",
     "typer>=0.12",
     "aiofiles>=24.1",
-    "sounddevice>=0.4.6",
-    "soundfile>=0.12",
-    "numpy>=1.26",
-    "faster-whisper>=1.0",
-    "piper-tts>=1.2",
-    "edge-tts>=6.1",
-    "openwakeword>=0.6",
-    "PySide6>=6.7",
     "psutil>=5.9",
     "dnspython>=2.6",
     "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]
+# Голос: STT/TTS/wakeword. openwakeword тянет tflite-runtime (нет колёс для 3.14) —
+# поэтому это опционально. На 3.14 ставь без wakeword, остальное встанет.
+voice = [
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12",
+    "numpy>=1.26",
+    "faster-whisper>=1.0",
+    "piper-tts>=1.2",
+    "edge-tts>=6.1",
+]
+voice-wake = ["openwakeword>=0.6"]
+gui = ["PySide6>=6.7", "PySide6-WebEngine>=6.7"]
+full = [
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12",
+    "numpy>=1.26",
+    "faster-whisper>=1.0",
+    "piper-tts>=1.2",
+    "edge-tts>=6.1",
+    "PySide6>=6.7",
+    "PySide6-WebEngine>=6.7",
+    "torch>=2.3",
+    "onnxruntime>=1.17",
+    "transformers>=4.40",
+    "librosa>=0.10",
+]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4", "mypy>=1.10"]
-full = ["torch>=2.3", "onnxruntime>=1.17", "transformers>=4.40", "librosa>=0.10"]
 zapret = []
-gui = ["PySide6>=6.7"]
 
 [project.scripts]
 meshpilot = "meshpilot.cli:app"

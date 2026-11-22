@@ -77,15 +77,19 @@ class OverlayWidget(QWidget):
                 from meshpilot.avatar.live2d import LIVE2D_HTML, ModelHTTPServer, _find_models_root
                 from meshpilot.avatar.vrm import VRM_HTML
 
-                # HTTP сервер для файлов модели (без CORS, с китайскими именами)
+                # HTTP сервер для файлов модели + vendor SDK (без CORS, с китайскими именами)
+                # Корень = assets/ (отдаёт и models/, и vendor/)
                 if self.loaded.type == "live2d":
-                    root = _find_models_root(self.loaded.path)
+                    from meshpilot.avatar.live2d import _find_assets_root
+                    root = _find_assets_root(self.loaded.path)
                     self._http_server = ModelHTTPServer(root)
                     base_url = self._http_server.start()
                     self._model_http_url = self.loaded.model_obj.http_url(base_url)
+                    self._vendor_base = base_url + "/vendor"
                     log.info("Live2D HTTP URL: %s", self._model_http_url)
                 else:
                     self._model_http_url = self.loaded.model_obj.model_url()
+                    self._vendor_base = "" 
 
                 self._webview = QWebEngineView(self)
                 self._webview.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -97,6 +101,9 @@ class OverlayWidget(QWidget):
                 except Exception:
                     pass
                 html = LIVE2D_HTML if self.loaded.type == "live2d" else VRM_HTML
+                # подставляем локальный vendor (офлайн, без CDN)
+                if self.loaded.type == "live2d" and getattr(self, "_vendor_base", ""):
+                    html = html.replace("__VENDOR_BASE__", self._vendor_base)
                 self._webview.setHtml(html)
                 layout.addWidget(self._webview)
                 self._use_web = True

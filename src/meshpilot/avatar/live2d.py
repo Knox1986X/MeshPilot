@@ -33,9 +33,9 @@ html,body{margin:0;padding:0;background:transparent !important;overflow:hidden;w
 canvas{display:block;background:transparent !important}
 #err{position:absolute;top:8px;left:8px;color:#f66;font:12px monospace;white-space:pre-wrap;max-width:90%}
 </style>
-<script src="https://cubism.live2d.com/sdk-web/cubism4.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@pixi/live2d-display@0.5.0/dist/index.min.js"></script>
+<script src="__VENDOR_BASE__/cubism4.min.js"></script>
+<script src="__VENDOR_BASE__/pixi.min.js"></script>
+<script src="__VENDOR_BASE__/live2d-display.min.js"></script>
 </head><body>
 <div id="err"></div>
 <script>
@@ -50,8 +50,8 @@ function showErr(msg) {
 
 async function loadModel(modelUrl) {
   try {
-    if (typeof PIXI === 'undefined') { showErr('PIXI не загрузился (нет интернета для CDN)'); return 'error: no PIXI'; }
-    if (!PIXI.live2d) { showErr('Live2D Display не загрузился (нет cubism4.min.js или CDN заблокирован)'); return 'error: no live2d'; }
+    if (typeof PIXI === 'undefined') { showErr('PIXI не загрузился (vendor/pixi.min.js)'); return 'error: no PIXI'; }
+    if (!PIXI.live2d) { showErr('Live2D Display не загрузился (vendor/live2d-display.min.js)'); return 'error: no live2d'; }
     try {
       // Cubism 4 runtime обязателен для .moc3
       if (typeof Live2DCubismCore === 'undefined') { showErr('Cubism Core не загрузился'); return 'error: no cubism core'; }
@@ -173,14 +173,29 @@ class Live2DModel:
     def http_url(self, base_url: str) -> str:
         """HTTP URL через локальный сервер (основной путь, без CORS).
 
-        base_url: http://127.0.0.1:PORT (корень = assets/models/)
-        Возвращает URL-encoded путь от корня.
+        base_url: http://127.0.0.1:PORT (корень = assets/)
+        Возвращает URL-encoded путь от assets/ (models/jane/...).
         """
-        root = _find_models_root(self.path)
+        root = _find_assets_root(self.path)
         rel = self.path.resolve().relative_to(root.resolve())
-        # quote каждый сегмент (китайские имена -> %E7%AE%80...)
         parts = [quote(p, safe="") for p in rel.parts]
         return base_url.rstrip("/") + "/" + "/".join(parts)
+
+
+def _find_assets_root(model_path: Path) -> Path:
+    """Корень assets/ (для HTTP сервера: models/ + vendor/)."""
+    cur = model_path.resolve().parent
+    for _ in range(6):
+        if cur.name == "assets" and (cur / "models").exists():
+            return cur
+        cur = cur.parent
+    # fallback: ищем models вверх
+    cur = model_path.resolve().parent
+    for _ in range(6):
+        if cur.name == "models":
+            return cur.parent
+        cur = cur.parent
+    return model_path.resolve().parent
 
 
 def _find_models_root(model_path: Path) -> Path:

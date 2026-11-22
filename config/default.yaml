@@ -1,0 +1,81 @@
+app:
+  name: MeshPilot
+  version: "0.1.0"
+  lang: ru
+  voice: jarvis
+  wake_word: mesh-pilot
+  log_level: INFO
+
+llm:
+  cascade: [groq, gigachat, hermes, openai_compat]
+  groq:
+    model: llama-3.3-70b-versatile
+    whisper_model: whisper-large-v3-turbo
+    tts_model: playai-tts
+  gigachat:
+    model: GigaChat2-Max
+    scope: GIGACHAT_API_PERSIST
+  hermes:
+    base_url: http://localhost:11434/v1
+    model: nous-hermes3:8b
+  openai_compat:
+    model: ""
+
+voice:
+  stt:
+    engine: faster-whisper
+    model: small
+    device: cpu
+    compute_type: int8
+    language: ru
+  tts:
+    engine: piper
+    piper_voice: en_GB-alan_medium
+    edge_voice: en-GB-RyanNeural
+    rate: 1.0
+    pitch: 0
+  vad:
+    engine: silero
+    threshold: 0.5
+    min_speech_ms: 300
+  wakeword:
+    engine: openwakeword
+    threshold: 0.5
+    models: [mesh-pilot, hey-jarvis]
+
+avatar:
+  # Модель персонажа (Втубер-стиль):
+  #   Live2D: assets/models/myvtuber/myvtuber.model3.json  (папка с .moc3 + текстурами)
+  #   VRM:    assets/models/myvtuber.vrm                    (один файл)
+  #   PNG:    assets/models/meshpilot.png                   (fallback)
+  engine: auto               # auto | live2d | vrm | png
+  model: assets/models/jane/  # Jane Doe ZZZ (Booth #6235947) — папка, MeshPilot найдёт .model3.json внутри
+  # Альтернатива — папка с моделью (MeshPilot сам найдёт .model3.json/.vrm внутри):
+  # model: assets/models/
+  scale: 1.0
+  always_on_top: true
+  click_through: false
+  dock: bottom-right
+  lip_sync: true
+  idle_blink: true
+  # Где скачать модели: см. docs/AVATAR_MODELS.md
+
+optimizer:
+  dry_run: false
+  keep_pacman_versions: 2
+  journal_keep: 7d
+  tmp_max_age_days: 7
+  mirror_count: 10
+  dns_top_n: 3
+  zapret:
+    enabled: false
+    strategy: auto
+    auto_update: true
+    service: zapret2
+
+gui:
+  theme: dark
+  show_tray: true
+  show_panel: true
+  show_overlay: true
+  panel_height: 56

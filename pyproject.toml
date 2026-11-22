@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meshpilot"
+version = "0.1.0"
+description = "MeshPilot — голосовой ассистент (Jarvis / Хан / Аниме) + оптимизатор CachyOS: чистка, зеркала, DNS, Zapret2"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "MeshPilot"}]
+keywords = ["voice-assistant", "cachyos", "arch", "zapret", "groq", "gigachat", "hermes", "optimizer"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Desktop Environment",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "httpx>=0.27",
+    "rich>=13.7",
+    "typer>=0.12",
+    "aiofiles>=24.1",
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12",
+    "numpy>=1.26",
+    "faster-whisper>=1.0",
+    "piper-tts>=1.2",
+    "edge-tts>=6.1",
+    "openwakeword>=0.6",
+    "PySide6>=6.7",
+    "psutil>=5.9",
+    "dnspython>=2.6",
+    "cryptography>=42.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4", "mypy>=1.10"]
+full = ["torch>=2.3", "onnxruntime>=1.17", "transformers>=4.40", "librosa>=0.10"]
+zapret = []
+gui = ["PySide6>=6.7"]
+
+[project.scripts]
+meshpilot = "meshpilot.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

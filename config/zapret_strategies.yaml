@@ -1,0 +1,26 @@
+# Стратегии Zapret2 для MeshPilot (RU DPI bypass)
+# Источник стратегий: Flowseal/zapret2 + community lists
+# MeshPilot сам подбирает лучшую перебором и замером скорости
+strategies:
+  - name: auto
+    description: "Автоподбор перебором (рекомендуется)"
+    args: "--filter-tcp=80 --dpi-desync=fake,split2 --dpi-desync-ttl=7 --dpi-desync-ttl6=7 --dpi-desync-fake-tls=0x00000000"
+  - name: fake-split
+    description: "fake + split2, классика для RU"
+    args: "--filter-tcp=80 --dpi-desync=fake,split2 --dpi-desync-ttl=7 --dpi-desync-fake-tls=0x00000000"
+  - name: multisplit
+    description: "multisplit для YouTube/Discord"
+    args: "--filter-tcp=80,443 --dpi-desync=multisplit --dpi-desync-split-pos=1,sni+2 --dpi-desync-ttl=7"
+  - name: syndata
+    description: "syndata + fake для HTTPS"
+    args: "--filter-tcp=443 --dpi-desync=syndata,fake --dpi-desync-ttl=7"
+  - name: wireguard-bypass
+    description: "Для WireGuard/UDP трафика"
+    args: "--filter-udp=443,500,4500 --dpi-desync=fake --dpi-desync-ttl=7"
+  - name: minimal
+    description: "Минимальная, для слабых ПК"
+    args: "--filter-tcp=80 --dpi-desync=fake --dpi-desync-ttl=7"
+benchmark:
+  test_hosts: [youtube.com, discord.com, google.com, github.com]
+  timeout_sec: 5
+  parallel: true

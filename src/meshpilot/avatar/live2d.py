@@ -33,6 +33,7 @@ html,body{margin:0;padding:0;background:transparent !important;overflow:hidden;w
 canvas{display:block;background:transparent !important}
 #err{position:absolute;top:8px;left:8px;color:#f66;font:12px monospace;white-space:pre-wrap;max-width:90%}
 </style>
+<script src="https://cubism.live2d.com/sdk-web/cubism4.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@pixi/live2d-display@0.5.0/dist/index.min.js"></script>
 </head><body>
@@ -50,7 +51,11 @@ function showErr(msg) {
 async function loadModel(modelUrl) {
   try {
     if (typeof PIXI === 'undefined') { showErr('PIXI не загрузился (нет интернета для CDN)'); return 'error: no PIXI'; }
-    if (!PIXI.live2d) { showErr('Live2D Display не загрузился'); return 'error: no live2d'; }
+    if (!PIXI.live2d) { showErr('Live2D Display не загрузился (нет cubism4.min.js или CDN заблокирован)'); return 'error: no live2d'; }
+    try {
+      // Cubism 4 runtime обязателен для .moc3
+      if (typeof Live2DCubismCore === 'undefined') { showErr('Cubism Core не загрузился'); return 'error: no cubism core'; }
+    } catch(e) {}
     app = new PIXI.Application({
       width: 400, height: 500,
       backgroundAlpha: 0,  // прозрачный фон!
@@ -131,7 +136,11 @@ class Live2DModel:
                 self.expressions.append(e)
         if not self.expressions:
             for f in sorted(self.path.parent.glob("*.exp3.json")):
-                self.expressions.append(f.stem)
+                # "右手.exp3.json" -> stem="右手.exp3", срезаем ещё .exp3
+                name = f.name
+                if name.endswith(".exp3.json"):
+                    name = name[: -len(".exp3.json")]
+                self.expressions.append(name)
         motions = file_refs.get("Motions", {}) or file_refs.get("Motions3", {})
         if isinstance(motions, dict):
             self.motions = list(motions.keys())
@@ -141,7 +150,10 @@ class Live2DModel:
             self.motions = []
         if not self.motions:
             for f in sorted(self.path.parent.glob("*.motion3.json")):
-                self.motions.append(f.stem)
+                name = f.name
+                if name.endswith(".motion3.json"):
+                    name = name[: -len(".motion3.json")]
+                self.motions.append(name)
         log.info("Live2D модель: %s expressions=%s motions=%s", self.path.name, self.expressions, self.motions)
 
     @property

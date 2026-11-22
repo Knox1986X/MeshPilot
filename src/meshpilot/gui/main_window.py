@@ -65,42 +65,75 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # --- сайдбар ---
+        # --- сайдбар (как MeshPrime на фото) ---
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(210)
+        sidebar.setFixedWidth(200)
         sb_layout = QVBoxLayout(sidebar)
-        sb_layout.setContentsMargins(10, 16, 10, 16)
+        sb_layout.setContentsMargins(12, 14, 12, 14)
         sb_layout.setSpacing(4)
 
-        logo = QLabel("◈ MeshPilot")
+        logo = QLabel("◈  MeshPilot")
         logo.setObjectName("title")
         sb_layout.addWidget(logo)
-        sub = QLabel("voice + optimizer")
-        sub.setObjectName("subtitle")
-        sb_layout.addWidget(sub)
-        sb_layout.addSpacing(16)
+        ver = QLabel("v0.1.0  ·  CachyOS")
+        ver.setObjectName("subtitle")
+        sb_layout.addWidget(ver)
+        sb_layout.addSpacing(14)
 
         self.nav_buttons = []
         self.stack = QStackedWidget()
-        pages = [
-            ("💬  Чат / Голос", self._chat_page()),
-            ("🧹  Оптимизатор", self._optimizer_page()),
-            ("🛡️  Zapret2 / DNS", self._zapret_page()),
-            ("⚙️  Настройки", self._settings_page()),
-        ]
-        for i, (label, page) in enumerate(pages):
-            btn = QPushButton(label)
-            btn.setObjectName("nav")
+
+        def _section(text: str) -> None:
+            s = QLabel(text)
+            s.setObjectName("section")
+            sb_layout.addWidget(s)
+            sb_layout.addSpacing(4)
+
+        def _nav(label: str, page, phase: str = "") -> None:
+            idx = self.stack.count()
+            btn = QPushButton(label + (f"   {phase}" if phase else ""))
+            btn.setObjectName("nav_phase" if phase else "nav")
             btn.setCheckable(True)
-            btn.setChecked(i == 0)
-            btn.clicked.connect(lambda _checked, idx=i: self._switch_page(idx))
+            btn.setChecked(idx == 0)
+            btn.clicked.connect(lambda _c, i=idx: self._switch_page(i))
             sb_layout.addWidget(btn)
             self.nav_buttons.append(btn)
             self.stack.addWidget(page)
 
+        _section("СИСТЕМА · MVP")
+        from meshpilot.gui.dashboard import DashboardPage
+        _nav("📊  Dashboard", DashboardPage())
+        _nav("🧹  CleanUp", self._optimizer_page())
+        _nav("🌐  Mirrors & DNS", self._zapret_page())
+        _nav("💬  Чат / Голос", self._chat_page())
+        _nav("⚙️  Settings & Tray", self._settings_page())
+
+        sb_layout.addSpacing(10)
+        _section("ДОРОЖНАЯ КАРТА")
+        _nav("📦  Sing-box / WG", QWidget(), phase="Phase 2")
+        _nav("🔧  Kernel & Tuning", QWidget(), phase="Phase 2")
+
         sb_layout.addStretch()
-        # статус внизу сайдбара
+        # карточка Zero-Cost Stack (как на фото)
+        zc = QFrame()
+        zc.setObjectName("card")
+        zc_lay = QVBoxLayout(zc)
+        zc_lay.setContentsMargins(10, 8, 10, 8)
+        zc_top = QHBoxLayout()
+        zc_title = QLabel("Zero-Cost Stack")
+        zc_title.setStyleSheet("font-weight: 700; font-size: 12px;")
+        zc_top.addWidget(zc_title)
+        zc_top.addStretch()
+        free = QLabel("Free")
+        free.setObjectName("chip_green")
+        zc_top.addWidget(free)
+        zc_lay.addLayout(zc_top)
+        zc_sub = QLabel("GitHub Releases + Dropbox Sync")
+        zc_sub.setObjectName("subtitle")
+        zc_lay.addWidget(zc_sub)
+        sb_layout.addWidget(zc)
+
         self.status_dot = QLabel("●  готов")
         self.status_dot.setObjectName("subtitle")
         sb_layout.addWidget(self.status_dot)

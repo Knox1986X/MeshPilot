@@ -25,7 +25,7 @@ from urllib.parse import quote
 
 log = logging.getLogger("meshpilot.live2d")
 
-# PixiJS 7 + Live2D Display 0.5 (Cubism 4) с jsdelivr (надёжнее unpkg в RU)
+# PixiJS 6 + Live2D Display 0.4 (Cubism 4) с jsdelivr (надёжнее unpkg в RU)
 LIVE2D_HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <style>

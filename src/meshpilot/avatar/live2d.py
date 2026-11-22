@@ -35,7 +35,7 @@ canvas{display:block;background:transparent !important}
 </style>
 <script src="__VENDOR_BASE__/live2dcubismcore.min.js"></script>
 <script src="__VENDOR_BASE__/pixi.min.js"></script>
-<script src="__VENDOR_BASE__/live2d-display.min.js"></script>
+<script src="__VENDOR_BASE__/cubism4.min.js"></script>
 </head><body>
 <div id="err"></div>
 <script>
@@ -51,7 +51,7 @@ function showErr(msg) {
 async function loadModel(modelUrl) {
   try {
     if (typeof PIXI === 'undefined') { showErr('PIXI не загрузился (vendor/pixi.min.js)'); return 'error: no PIXI'; }
-    if (!PIXI.live2d) { showErr('Live2D Display не загрузился (vendor/live2d-display.min.js)'); return 'error: no live2d'; }
+    if (!PIXI.live2d) { showErr('Live2D Display не загрузился (vendor/cubism4.min.js)'); return 'error: no live2d'; }
     try {
       // Cubism 4 runtime обязателен для .moc3
       if (typeof Live2DCubismCore === 'undefined') { showErr('Cubism Core не загрузился'); return 'error: no cubism core'; }

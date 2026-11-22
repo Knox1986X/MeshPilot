@@ -1,6 +1,6 @@
-//! Системные метрики (sysinfo): CPU, RAM, диск, сеть, ядра.
+//! Системные метрики (sysinfo 0.30): CPU, RAM, диск, сеть, ядра.
 use serde::Serialize;
-use sysinfo::{CpuExt, System, SystemExt, DiskExt, NetworkExt};
+use sysinfo::{Disks, Networks, System};
 
 #[derive(Serialize, Clone)]
 pub struct Metrics {
@@ -29,13 +29,17 @@ pub fn get_metrics() -> Metrics {
     let total_mem = sys.total_memory() as f64 / 1e9;
     let used_mem = sys.used_memory() as f64 / 1e9;
     let ram_percent = if total_mem > 0.0 { (used_mem / total_mem * 100.0) as f32 } else { 0.0 };
-    let disk = sys.disks().first().map(|d| {
+    // Диск: Disks (0.30 API, не System::disks)
+    let disks = Disks::new_with_refreshed_list();
+    let disk = disks.iter().next().map(|d| {
         let total = d.total_space() as f64 / 1e9;
         let avail = d.available_space() as f64 / 1e9;
         let used = total - avail;
         (used, total, if total > 0.0 { (used / total * 100.0) as f32 } else { 0.0 })
     }).unwrap_or((0.0, 0.0, 0.0));
-    let net = sys.networks().values().next().map(|n| {
+    // Сеть: Networks (0.30 API)
+    let networks = Networks::new_with_refreshed_list();
+    let net = networks.values().next().map(|n| {
         (n.received() as f64 / 1e6, n.transmitted() as f64 / 1e6)
     }).unwrap_or((0.0, 0.0));
     Metrics {
@@ -51,6 +55,6 @@ pub fn get_metrics() -> Metrics {
         net_rx_mb: net.0,
         net_tx_mb: net.1,
         hostname: System::host_name().unwrap_or_else(|| "localhost".into()),
-        kernel: System::kernel_version(),
+        kernel: System::kernel_version().unwrap_or_else(|| "unknown".into()),
     }
 }

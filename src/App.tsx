@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Dashboard from "./components/Dashboard";
 import Optimizer from "./components/Optimizer";
 import Zapret from "./components/Zapret";
@@ -16,9 +16,26 @@ const PAGES = [
 
 export default function App() {
   const [page, setPage] = useState("dashboard");
-  const isAvatar = window.location.pathname.includes("avatar") || new URLSearchParams(window.location.search).has("avatar");
+  const [isAvatarWindow, setIsAvatarWindow] = useState(false);
 
-  if (isAvatar) {
+  // Tauri: avatar-окно (label="avatar") показывает ТОЛЬКО модель, без сайдбара
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const label = getCurrentWindow().label;
+        if (label === "avatar") {
+          setIsAvatarWindow(true);
+          document.documentElement.classList.add("avatar-window");
+          document.body.classList.add("avatar-window");
+        }
+      } catch {
+        // dev в браузере (без Tauri) — не avatar
+      }
+    })();
+  }, []);
+
+  if (isAvatarWindow) {
     return <Avatar />;
   }
 

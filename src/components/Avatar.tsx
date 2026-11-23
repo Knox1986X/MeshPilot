@@ -19,5 +19,5 @@ export default function Avatar({ mouth = 0 }: { mouth?: number }) {
     setMouth(mouth);
   }, [mouth]);
 
-  return <div ref={ref} className="avatar-window" />;
+  return <div ref={ref} className="avatar-window" style={{ background: "transparent" }} />;
 }

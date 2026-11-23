@@ -26,12 +26,15 @@
         "title": "MeshPilot Avatar",
         "width": 400,
         "height": 500,
+        "x": 1400,
+        "y": 400,
         "resizable": false,
         "fullscreen": false,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
+        "focus": false,
         "visible": true
       }
     ],

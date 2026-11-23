@@ -77,7 +77,6 @@ export default function App() {
           {page === "settings" && <Settings />}
         </div>
       </main>
-      <Avatar />
     </div>
   );
 }
